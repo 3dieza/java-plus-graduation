@@ -4,25 +4,21 @@ server:
 spring:
   application:
     name: gateway-server
-
   cloud:
     gateway:
-      server:
-        webflux:
-          discovery:
-            locator:
-              enabled: true
-              lower-case-service-id: true
-
-          routes:
-            - id: stats-service-route
-              uri: lb://stats-server
-              predicates:
-                - Path=/stats/**
-            - id: main-service-route
-              uri: lb://main-service
-              predicates:
-                - Path=/**
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+      routes:
+        - id: stats-service-route
+          uri: lb://stats-server
+          predicates:
+            - Path=/stats/**
+        - id: main-service-route
+          uri: lb://main-service
+          predicates:
+            - Path=/**
 eureka:
   client:
     service-url:
