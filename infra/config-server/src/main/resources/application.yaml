@@ -16,7 +16,19 @@ spring:
             - classpath:config/core/{application}
             - classpath:config/stats/{application}
             - classpath:config/infra/{application}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
 eureka:
   client:
     serviceUrl:
       defaultZone: http://localhost:8761/eureka/
+  instance:
+    health-check-url-path: /actuator/health
+    status-page-url-path: /actuator/info

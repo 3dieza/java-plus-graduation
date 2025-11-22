@@ -5,7 +5,6 @@ spring:
   application:
     name: gateway-server
 
-
   cloud:
     gateway:
       discovery:
