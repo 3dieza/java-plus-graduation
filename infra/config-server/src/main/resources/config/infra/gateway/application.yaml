@@ -4,21 +4,26 @@ server:
 spring:
   application:
     name: gateway-server
+
   cloud:
     gateway:
-      discovery:
-        locator:
-          enabled: true
-          lower-case-service-id: true
-      routes:
-        - id: stats-service-route
-          uri: lb://stats-server
-          predicates:
-            - Path=/stats/**
-        - id: main-service-route
-          uri: lb://main-service
-          predicates:
-            - Path=/**
+      server:
+        webflux:
+          discovery:
+            locator:
+              enabled: true
+              lower-case-service-id: true
+
+          routes:
+            - id: stats-service-route
+              uri: lb://stats-server
+              predicates:
+                - Path=/stats/**
+            - id: main-service-route
+              uri: lb://main-service
+              predicates:
+                - Path=/**
+
 eureka:
   client:
     service-url:
@@ -31,8 +36,3 @@ management:
     web:
       exposure:
         include: health,info,metrics,gateway
-
-logging:
-  level:
-    org.springframework.cloud.gateway: DEBUG
-    reactor.netty: INFO
