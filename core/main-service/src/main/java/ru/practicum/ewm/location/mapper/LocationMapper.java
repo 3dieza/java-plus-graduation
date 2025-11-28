@@ -6,7 +6,6 @@ import ru.practicum.ewm.location.dto.LocationDtoOut;
 import ru.practicum.ewm.location.dto.LocationFullDtoOut;
 import ru.practicum.ewm.location.dto.LocationPrivateDtoOut;
 import ru.practicum.ewm.location.model.Location;
-import ru.practicum.ewm.user.mapper.UserMapper;
 
 @UtilityClass
 public class LocationMapper {
@@ -36,7 +35,7 @@ public class LocationMapper {
                 .address(location.getAddress())
                 .latitude(location.getLatitude())
                 .longitude(location.getLongitude())
-                .creator(location.getCreator() == null ? null : UserMapper.toDto(location.getCreator()))
+                .creatorId(location.getCreatorId())
                 .state(location.getState())
                 .build();
     }

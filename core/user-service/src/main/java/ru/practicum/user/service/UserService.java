@@ -1,8 +1,8 @@
-package ru.practicum.ewm.user.service;
+package ru.practicum.user.service;
 
+import ru.practicum.user.dto.NewUserRequest;
+import ru.practicum.user.dto.UserDtoOut;
 import java.util.List;
-import ru.practicum.ewm.user.dto.NewUserRequest;
-import ru.practicum.ewm.user.dto.UserDtoOut;
 
 public interface UserService {
     UserDtoOut createUser(NewUserRequest request);

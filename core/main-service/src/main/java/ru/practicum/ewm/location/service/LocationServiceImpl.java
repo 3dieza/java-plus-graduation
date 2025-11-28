@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.practicum.ewm.event.client.UserClient;
 import ru.practicum.ewm.event.repository.EventRepository;
 import ru.practicum.ewm.exception.ConditionNotMetException;
 import ru.practicum.ewm.exception.DuplicateLocationsException;
@@ -15,8 +16,6 @@ import ru.practicum.ewm.location.dto.*;
 import ru.practicum.ewm.location.mapper.LocationMapper;
 import ru.practicum.ewm.location.model.*;
 import ru.practicum.ewm.location.repository.LocationRepository;
-import ru.practicum.ewm.user.model.User;
-import ru.practicum.ewm.user.repository.UserRepository;
 
 import java.util.Collection;
 import java.util.List;
@@ -32,7 +31,7 @@ public class LocationServiceImpl implements LocationService {
 
     private static final double NEARBY_RADIUS = 50; // meters
 
-    private final UserRepository userRepository;
+    private final UserClient userClient;
     private final LocationRepository locationRepository;
     private final EventRepository eventRepository;
 
@@ -48,13 +47,16 @@ public class LocationServiceImpl implements LocationService {
     @Override
     @Transactional
     public LocationPrivateDtoOut addLocation(Long userId, LocationCreateDto dto) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new NotFoundException("User", userId));
+        try {
+            userClient.getUserById(userId);
+        } catch (Exception e) {
+            throw new NotFoundException("User", userId);
+        }
 
         checkForDuplicate(dto.getName(), dto.getLatitude(), dto.getLongitude());
 
         Location location = LocationMapper.fromDto(dto);
-        location.setCreator(user);
+        location.setCreatorId(userId);
         Location saved = locationRepository.save(location);
         return LocationMapper.toPrivateDto(saved);
     }
@@ -86,7 +88,7 @@ public class LocationServiceImpl implements LocationService {
             throw new ConditionNotMetException("Cannot update published or rejected location");
         }
 
-        if (location.getCreator() == null || !location.getCreator().getId().equals(userId)) {
+        if (location.getCreatorId() == null || !location.getCreatorId().equals(userId)) {
             throw new NoAccessException("Only creator can edit this location");
         }
 
@@ -169,8 +171,11 @@ public class LocationServiceImpl implements LocationService {
     @Override
     public Collection<LocationPrivateDtoOut> findAllByFilter(Long userId, LocationPrivateFilter filter) {
 
-        if (!userRepository.existsById(userId))
+        try {
+            userClient.getUserById(userId);
+        } catch (Exception e) {
             throw new NotFoundException("User", userId);
+        }
 
         Specification<Location> spec = buildSpecification(userId, filter);
         List<Location> locations = locationRepository.findAll(spec, filter.getPageable()).getContent();
@@ -214,7 +219,7 @@ public class LocationServiceImpl implements LocationService {
             throw new ConditionNotMetException("Cannot delete published location");
         }
 
-        if (location.getCreator() == null || !location.getCreator().getId().equals(userId)) {
+        if (location.getCreatorId() == null || !location.getCreatorId().equals(userId)) {
             throw new NoAccessException("Only creator can delete this location");
         }
 
@@ -257,7 +262,7 @@ public class LocationServiceImpl implements LocationService {
     private Specification<Location> buildSpecification(LocationAdminFilter filter) {
         return Stream.of(
                         optionalSpec(LocationSpecifications.withTextContains(filter.getText())),
-                        optionalSpec(LocationSpecifications.withCreator(filter.getCreator())),
+                        optionalSpec(LocationSpecifications.withCreatorId(filter.getCreatorId())),
                         optionalSpec(LocationSpecifications.withCoordinates(filter.getZone())),
                         optionalSpec(LocationSpecifications.withState(filter.getState())),
                         optionalSpec(LocationSpecifications.withEventsCount(filter.getMinEvents(), filter.getMaxEvents()))
@@ -269,7 +274,7 @@ public class LocationServiceImpl implements LocationService {
 
     private Specification<Location> buildSpecification(Long userId, LocationPrivateFilter filter) {
         return Stream.of(
-                        optionalSpec(LocationSpecifications.withCreator(userId)),
+                        optionalSpec(LocationSpecifications.withCreatorId(userId)),
                         optionalSpec(LocationSpecifications.withState(filter.getState())),
                         optionalSpec(LocationSpecifications.withTextContains(filter.getText())),
                         optionalSpec(LocationSpecifications.withCoordinates(filter.getZone()))

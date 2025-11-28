@@ -12,7 +12,7 @@ import org.springframework.data.domain.Sort;
 @AllArgsConstructor
 public class LocationAdminFilter {
     private String text;
-    private Long creator;
+    private Long creatorId;
     private LocationState state;
     private Zone zone;
     private Integer minEvents;

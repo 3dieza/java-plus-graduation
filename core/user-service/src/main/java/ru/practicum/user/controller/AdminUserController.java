@@ -1,4 +1,4 @@
-package ru.practicum.ewm.user.controller;
+package ru.practicum.user.controller;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
@@ -15,9 +15,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import ru.practicum.ewm.user.dto.NewUserRequest;
-import ru.practicum.ewm.user.dto.UserDtoOut;
-import ru.practicum.ewm.user.service.UserService;
+import ru.practicum.user.dto.NewUserRequest;
+import ru.practicum.user.dto.UserDtoOut;
+import ru.practicum.user.service.UserService;
 
 @RestController
 @Validated

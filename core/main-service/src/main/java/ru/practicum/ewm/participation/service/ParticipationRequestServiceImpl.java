@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.practicum.ewm.event.client.UserClient;
 import ru.practicum.ewm.event.model.Event;
 import ru.practicum.ewm.event.model.EventState;
 import ru.practicum.ewm.event.repository.EventRepository;
@@ -18,8 +19,6 @@ import ru.practicum.ewm.participation.mapper.ParticipationRequestMapper;
 import ru.practicum.ewm.participation.model.ParticipationRequest;
 import ru.practicum.ewm.participation.model.RequestStatus;
 import ru.practicum.ewm.participation.repository.ParticipationRequestRepository;
-import ru.practicum.ewm.user.model.User;
-import ru.practicum.ewm.user.repository.UserRepository;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -35,7 +34,7 @@ import static ru.practicum.ewm.participation.model.RequestStatus.CONFIRMED;
 @RequiredArgsConstructor
 public class ParticipationRequestServiceImpl implements ParticipationRequestService {
 
-    private final UserRepository userRepo;
+    private final UserClient userClient;
     private final EventRepository eventRepo;
     private final ParticipationRequestRepository requestRepo;
 
@@ -53,7 +52,12 @@ public class ParticipationRequestServiceImpl implements ParticipationRequestServ
     public ParticipationRequestDto createRequest(Long userId, Long eventId) {
         log.debug("Пользователь {} пытается создать запрос участия для события {}", userId, eventId);
 
-        User user = getUserById(userId);
+        try {
+            userClient.getUserById(userId);
+        } catch (Exception e) {
+            throw new NotFoundException("User", userId);
+        }
+
         Event event = getEventById(eventId);
 
         checkRequestNotExists(userId, eventId);
@@ -64,7 +68,7 @@ public class ParticipationRequestServiceImpl implements ParticipationRequestServ
         RequestStatus status = determineRequestStatus(event);
 
         ParticipationRequest request = new ParticipationRequest();
-        request.setRequester(user);
+        request.setRequesterId(userId);
         request.setEvent(event);
         request.setCreated(LocalDateTime.now().truncatedTo(ChronoUnit.MILLIS));
         request.setStatus(status);
@@ -82,7 +86,9 @@ public class ParticipationRequestServiceImpl implements ParticipationRequestServ
      */
     @Override
     public List<ParticipationRequestDto> getUserRequests(Long userId) {
-        if (!userRepo.existsById(userId)) {
+        try {
+            userClient.getUserById(userId);
+        } catch (Exception e) {
             throw new NotFoundException("User", userId);
         }
         return requestRepo.findAllByRequesterId(userId).stream()
@@ -136,11 +142,15 @@ public class ParticipationRequestServiceImpl implements ParticipationRequestServ
     @Override
     public List<ParticipationRequestDto> getRequestsForEvent(Long eventId, Long initiatorId) {
         log.debug("getRequestsForEvent: {} of user: {}", eventId, initiatorId);
+        try {
+            userClient.getUserById(initiatorId);
+        } catch (Exception e) {
+            throw new NotFoundException("User", initiatorId);
+        }
 
-        getUserById(initiatorId);
         Event event = getEventById(eventId);
 
-        if (!event.getInitiator().getId().equals(initiatorId)) {
+        if (!event.getInitiatorId().equals(initiatorId)) {
             throw new NoAccessException("Only initiator can view requests of event");
         }
 
@@ -168,18 +178,12 @@ public class ParticipationRequestServiceImpl implements ParticipationRequestServ
         ParticipationRequest request = requestRepo.findById(requestId)
                 .orElseThrow(() -> new NotFoundException("ParticipationRequest", requestId));
 
-        if (!request.getRequester().getId().equals(userId)) {
+        if (!request.getRequesterId().equals(userId)) {
             throw new ForbiddenException("Only the author of the application can cancel it.");
         }
 
         request.setStatus(CANCELED);
         return ParticipationRequestMapper.toDto(requestRepo.save(request));
-    }
-
-    // Вспомогательный метод — получаем пользователя из базы, иначе кидаем NotFoundException.
-    private User getUserById(Long userId) {
-        return userRepo.findById(userId)
-                .orElseThrow(() -> new NotFoundException("User", userId));
     }
 
     // Аналогично, получаем событие из базы или кидаем исключение.
@@ -197,7 +201,7 @@ public class ParticipationRequestServiceImpl implements ParticipationRequestServ
 
     // Проверяем, что инициатор события не пытается подать заявку на своё событие (это нечестно).
     private void checkNotEventInitiator(Long userId, Event event) {
-        if (event.getInitiator().getId().equals(userId)) {
+        if (event.getInitiatorId().equals(userId)) {
             throw new ConditionNotMetException("Initiator cannot participate in their own event.");
         }
     }
@@ -240,7 +244,7 @@ public class ParticipationRequestServiceImpl implements ParticipationRequestServ
         Event event = eventRepo.findById(eventId)
                 .orElseThrow(() -> new NotFoundException("Event", eventId));
 
-        if (!event.getInitiator().getId().equals(userId)) {
+        if (!event.getInitiatorId().equals(userId)) {
             throw new ForbiddenException("The user is not the initiator of the event");
         }
 

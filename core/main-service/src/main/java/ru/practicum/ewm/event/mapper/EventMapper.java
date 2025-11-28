@@ -7,11 +7,11 @@ import ru.practicum.ewm.event.dto.EventDtoOut;
 import ru.practicum.ewm.event.dto.EventShortDtoOut;
 import ru.practicum.ewm.event.model.Event;
 import ru.practicum.ewm.location.mapper.LocationMapper;
-import ru.practicum.ewm.user.mapper.UserMapper;
+import ru.practicum.ewm.user.dto.UserDtoOut;
 
 @UtilityClass
 public class EventMapper {
-    public static Event fromDto(EventCreateDto eventDto) {
+    public Event fromDto(EventCreateDto eventDto) {
         return Event.builder()
                 .annotation(eventDto.getAnnotation())
                 .title(eventDto.getTitle())
@@ -23,7 +23,7 @@ public class EventMapper {
                 .build();
     }
 
-    public static EventDtoOut toDto(Event event) {
+    public EventDtoOut toDto(Event event, UserDtoOut initiator) {
         return EventDtoOut.builder()
                 .id(event.getId())
                 .annotation(event.getAnnotation())
@@ -32,7 +32,7 @@ public class EventMapper {
                 .paid(event.getPaid())
                 .eventDate(event.getEventDate())
                 .description(event.getDescription())
-                .initiator(UserMapper.toDto(event.getInitiator()))
+                .initiator(initiator)
                 .createdOn(event.getCreatedAt())
                 .state(event.getState())
                 .confirmedRequests(event.getConfirmedRequests())
@@ -43,7 +43,7 @@ public class EventMapper {
                 .build();
     }
 
-    public static EventShortDtoOut toShortDto(Event event) {
+    public EventShortDtoOut toShortDto(Event event, UserDtoOut initiator) {
         return EventShortDtoOut.builder()
                 .id(event.getId())
                 .annotation(event.getAnnotation())
@@ -51,9 +51,13 @@ public class EventMapper {
                 .category(CategoryMapper.toDto(event.getCategory()))
                 .paid(event.getPaid())
                 .eventDate(event.getEventDate())
-                .initiator(UserMapper.toDto(event.getInitiator()))
+                .initiator(initiator)
                 .confirmedRequests(event.getConfirmedRequests())
                 .views(event.getViews())
                 .build();
+    }
+
+    public EventShortDtoOut toShortDto(Event event) {
+        return toShortDto(event, null);
     }
 }

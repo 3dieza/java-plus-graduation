@@ -3,7 +3,6 @@ package ru.practicum.ewm.location.dto;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.*;
 import ru.practicum.ewm.location.model.LocationState;
-import ru.practicum.ewm.user.dto.UserDtoOut;
 
 @Getter
 @Setter
@@ -19,6 +18,6 @@ public class LocationFullDtoOut {
     private Double latitude;
     @JsonProperty(value = "lon")
     private Double longitude;
-    private UserDtoOut creator;
+    private Long creatorId;
     private LocationState state;
 }

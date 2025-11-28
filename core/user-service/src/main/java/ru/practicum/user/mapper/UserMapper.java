@@ -1,8 +1,8 @@
-package ru.practicum.ewm.user.mapper;
+package ru.practicum.user.mapper;
 
-import ru.practicum.ewm.user.dto.NewUserRequest;
-import ru.practicum.ewm.user.dto.UserDtoOut;
-import ru.practicum.ewm.user.model.User;
+import ru.practicum.user.dto.NewUserRequest;
+import ru.practicum.user.dto.UserDtoOut;
+import ru.practicum.user.model.User;
 
 public class UserMapper {
 

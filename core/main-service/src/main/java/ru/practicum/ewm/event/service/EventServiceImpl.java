@@ -1,6 +1,12 @@
 package ru.practicum.ewm.event.service;
 
+import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -10,7 +16,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.practicum.ewm.category.model.Category;
 import ru.practicum.ewm.category.repository.CategoryRepository;
-import ru.practicum.ewm.event.dto.*;
+import ru.practicum.ewm.event.client.UserClient;
+import ru.practicum.ewm.event.dto.EventCreateDto;
+import ru.practicum.ewm.event.dto.EventDtoOut;
+import ru.practicum.ewm.event.dto.EventShortDtoOut;
+import ru.practicum.ewm.event.dto.EventUpdateAdminDto;
+import ru.practicum.ewm.event.dto.EventUpdateDto;
 import ru.practicum.ewm.event.mapper.EventMapper;
 import ru.practicum.ewm.event.model.Event;
 import ru.practicum.ewm.event.model.EventAdminFilter;
@@ -24,18 +35,10 @@ import ru.practicum.ewm.location.model.Location;
 import ru.practicum.ewm.location.service.LocationService;
 import ru.practicum.ewm.participation.model.RequestsCount;
 import ru.practicum.ewm.participation.repository.ParticipationRequestRepository;
-import ru.practicum.ewm.user.model.User;
-import ru.practicum.ewm.user.repository.UserRepository;
+import ru.practicum.ewm.user.dto.UserDtoOut;
 import ru.practicum.statsclient.StatsClient;
 import ru.practicum.statsclient.StatsClientException;
 import ru.practicum.statsdto.StatsDtoOut;
-
-import java.time.LocalDateTime;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.stream.Collectors;
 
 import static ru.practicum.ewm.constants.Constants.STATS_EVENTS_URL;
 
@@ -49,7 +52,7 @@ public class EventServiceImpl implements EventService {
     private static final int MIN_TIME_TO_PUBLISHED_EVENT = 1;
 
     private final EventRepository eventRepository;
-    private final UserRepository userRepository;
+    private final UserClient userClient;
     private final CategoryRepository categoryRepository;
     private final ParticipationRequestRepository requestRepository;
 
@@ -57,24 +60,25 @@ public class EventServiceImpl implements EventService {
 
     private final StatsClient statsClient;
 
-
     @Override
     @Transactional
     public EventDtoOut add(Long userId, EventCreateDto eventDto) {
 
         validateEventDate(eventDto.getEventDate(), EventState.PENDING);
         Category category = getCategory(eventDto.getCategoryId());
-        User user = getUser(userId);
+
+        UserDtoOut initiator = getUserOrThrow(userId);
+
         Location location = locationService.getOrCreateLocation(eventDto.getLocation());
 
         Event event = EventMapper.fromDto(eventDto);
         event.setLocation(location);
         event.setCategory(category);
-        event.setInitiator(user);
+        event.setInitiatorId(userId);
 
         event = eventRepository.save(event);
 
-        return EventMapper.toDto(event);
+        return EventMapper.toDto(event, initiator);
     }
 
     @Override
@@ -83,7 +87,7 @@ public class EventServiceImpl implements EventService {
 
         Event event = getEvent(eventId);
 
-        if (!event.getInitiator().getId().equals(userId)) {
+        if (!event.getInitiatorId().equals(userId)) {
             throw new NoAccessException("Only initiator can edit the event");
         }
 
@@ -117,12 +121,14 @@ public class EventServiceImpl implements EventService {
         if (eventDto.getStateAction() != null) {
             switch (eventDto.getStateAction()) {
                 case SEND_TO_REVIEW -> event.setState(EventState.PENDING);
-                case CANCEL_REVIEW  -> event.setState(EventState.CANCELED);
+                case CANCEL_REVIEW -> event.setState(EventState.CANCELED);
             }
         }
 
         Event updated = eventRepository.save(event);
-        return EventMapper.toDto(updated);
+        UserDtoOut initiator = getUserOrThrow(updated.getInitiatorId());
+
+        return EventMapper.toDto(updated, initiator);
     }
 
     @Override
@@ -158,7 +164,8 @@ public class EventServiceImpl implements EventService {
             }
         }
 
-        return EventMapper.toDto(event);
+        UserDtoOut initiator = getUserOrThrow(event.getInitiatorId());
+        return EventMapper.toDto(event, initiator);
     }
 
     @Override
@@ -170,43 +177,58 @@ public class EventServiceImpl implements EventService {
         enrichWithConfirmedRequestsCount(List.of(event));
         enrichWithViewsCount(List.of(event));
 
-        return EventMapper.toDto(event);
+        UserDtoOut initiator = getUserOrThrow(event.getInitiatorId());
+        return EventMapper.toDto(event, initiator);
     }
 
     @Override
     public EventDtoOut find(Long userId, Long eventId) {
-        if (!userRepository.existsById(userId)) {
-            throw new NotFoundException("User", userId);
-        }
+
+        getUserOrThrow(userId);
 
         Event event = getEvent(eventId);
 
-        if (!event.getInitiator().getId().equals(userId)) {
+        if (!event.getInitiatorId().equals(userId)) {
             throw new NoAccessException("Only initiator can view this event");
         }
 
         enrichWithConfirmedRequestsCount(List.of(event));
         enrichWithViewsCount(List.of(event));
 
-        return EventMapper.toDto(event);
+        UserDtoOut initiator = getUserOrThrow(event.getInitiatorId());
+        return EventMapper.toDto(event, initiator);
     }
 
     @Override
     public Collection<EventShortDtoOut> findShortEventsBy(EventFilter filter) {
         Specification<Event> spec = buildSpecification(filter);
-        return findBy(spec, filter.getPageable()).stream()
-                .map(EventMapper::toShortDto)
+        Collection<Event> events = findBy(spec, filter.getPageable());
+
+        Map<Long, UserDtoOut> usersById = loadUsersForEvents(events);
+
+        return events.stream()
+                .map(event -> EventMapper.toShortDto(
+                        event,
+                        usersById.get(event.getInitiatorId())
+                ))
                 .toList();
     }
 
     @Override
     public Collection<EventDtoOut> findFullEventsBy(EventAdminFilter filter) {
         Specification<Event> spec = buildSpecification(filter);
-        return findBy(spec, filter.getPageable()).stream()
-                .map(EventMapper::toDto)
+        Collection<Event> events = findBy(spec, filter.getPageable());
+
+        Map<Long, UserDtoOut> usersById = loadUsersForEvents(events);
+
+
+        return events.stream()
+                .map(event -> EventMapper.toDto(
+                        event,
+                        usersById.get(event.getInitiatorId())
+                ))
                 .toList();
     }
-
 
     private Collection<Event> findBy(Specification<Event> spec, Pageable pageable) {
         Collection<Event> events = eventRepository.findAll(spec, pageable).getContent();
@@ -253,27 +275,33 @@ public class EventServiceImpl implements EventService {
 
     @Override
     public Collection<EventShortDtoOut> findByInitiator(Long userId, Integer offset, Integer limit) {
-        if (!userRepository.existsById(userId)) {
-            throw new NotFoundException("User", userId);
-        }
+
+        getUserOrThrow(userId);
 
         Collection<Event> events = eventRepository.findByInitiatorId(userId, offset, limit);
         enrichWithConfirmedRequestsCount(events);
         enrichWithViewsCount(events);
 
+        Map<Long, UserDtoOut> usersById = loadUsersForEvents(events);
+
         return events.stream()
-                .map(EventMapper::toShortDto)
+                .map(event -> EventMapper.toShortDto(
+                        event,
+                        usersById.get(event.getInitiatorId())
+                ))
                 .toList();
     }
 
     private void enrichWithConfirmedRequestsCount(Collection<Event> events) {
-        if (events.isEmpty())
+        if (events.isEmpty()) {
             return;
+        }
 
         List<Long> ids = events.stream().map(Event::getId).toList();
         List<RequestsCount> requestsCounts = requestRepository.countConfirmedRequestsForEvents(ids);
-        if (requestsCounts.isEmpty())
+        if (requestsCounts.isEmpty()) {
             return;
+        }
 
         Map<Long, Integer> counts = requestsCounts
                 .stream()
@@ -287,15 +315,17 @@ public class EventServiceImpl implements EventService {
     }
 
     private void enrichWithViewsCount(Collection<Event> events) {
-        if (events.isEmpty())
+        if (events.isEmpty()) {
             return;
+        }
 
         Map<Long, Integer> hitsMap = getStatistics(events.stream()
                 .map(Event::getId)
                 .toList());
 
-        if (hitsMap.isEmpty())
+        if (hitsMap.isEmpty()) {
             return;
+        }
 
         events.forEach(dto ->
                 dto.setViews(hitsMap.getOrDefault(dto.getId(), 0))
@@ -304,8 +334,9 @@ public class EventServiceImpl implements EventService {
 
     private Map<Long, Integer> getStatistics(Collection<Long> ids) {
         Collection<StatsDtoOut> stats = List.of();
-        if (ids.isEmpty())
+        if (ids.isEmpty()) {
             return Map.of();
+        }
 
         try {
             stats = statsClient.getStats(
@@ -317,8 +348,9 @@ public class EventServiceImpl implements EventService {
             log.error(ex.getMessage());
         }
 
-        if (stats.isEmpty())
+        if (stats.isEmpty()) {
             return Map.of();
+        }
 
         Map<String, Integer> hits = stats.stream()
                 .collect(Collectors.toMap(
@@ -356,17 +388,10 @@ public class EventServiceImpl implements EventService {
     }
 
     @SuppressWarnings("UnusedReturnValue")
-    private User getUser(Long userId) {
-        return userRepository.findById(userId)
-                .orElseThrow(() -> new NotFoundException("User", userId));
-    }
-
-    @SuppressWarnings("UnusedReturnValue")
     private Event getEvent(Long eventId) {
         return eventRepository.findById(eventId)
                 .orElseThrow(() -> new NotFoundException("Event", eventId));
     }
-
 
     private void publishEvent(Event event) {
         if (event.getState() != EventState.PENDING) {
@@ -384,5 +409,48 @@ public class EventServiceImpl implements EventService {
             throw new ConditionNotMetException("Published events cannot be rejected");
         }
         event.setState(EventState.CANCELED);
+    }
+
+    // === helpers для пользователей ===
+
+    private UserDtoOut getUserOrThrow(Long userId) {
+        try {
+            UserDtoOut user = userClient.getUserById(userId);
+            if (user == null) {
+                throw new NotFoundException("User", userId);
+            }
+            return user;
+        } catch (NotFoundException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new NotFoundException("User", userId);
+        }
+    }
+
+    private Map<Long, UserDtoOut> loadUsersForEvents(Collection<Event> events) {
+        if (events.isEmpty()) {
+            return Map.of();
+        }
+
+        List<Long> ids = events.stream()
+                .map(Event::getInitiatorId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+
+        List<UserDtoOut> users;
+        try {
+            users = userClient.getUsers(ids);
+        } catch (Exception e) {
+            log.error("Error fetching users for events: {}", e.getMessage(), e);
+            return Map.of();
+        }
+
+        return users.stream()
+                .collect(Collectors.toMap(UserDtoOut::getId, u -> u));
     }
 }

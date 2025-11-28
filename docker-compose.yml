@@ -17,22 +17,6 @@ services:
       interval: 5s
       retries: 10
 
-
-#  stats-server:
-#    build:
-#      context: .
-#      dockerfile: stats/stats-server/Dockerfile
-#    image: stats-server
-#    container_name: stats-server
-#    ports:
-#      - "9090:9090"
-#    depends_on:
-#      - stats-db
-#    environment:
-#      - SPRING_DATASOURCE_URL=jdbc:postgresql://stats-db:5432/statsdb
-#      - SPRING_DATASOURCE_USERNAME=dbuser
-#      - SPRING_DATASOURCE_PASSWORD=123456
-
   ewm-db:
     image: postgres:16.1
     container_name: postgres-ewm-main-db
@@ -48,18 +32,42 @@ services:
       interval: 5s
       retries: 10
 
-#  main-service:
-#    ports:
-#      - "8888:8080"
-#    build:
-#      context: ./core/main-service
-#    image: ewm-service
-#    container_name: main-service
-#    depends_on:
-#      - stats-server
-#      - ewm-db
-#    environment:
-#      - SPRING_DATASOURCE_URL=jdbc:postgresql://ewm-db:5432/ewmdb
-#      - SPRING_DATASOURCE_USERNAME=dbuser
-#      - SPRING_DATASOURCE_PASSWORD=123456
-#      - STATSSERVER_URL=http://stats-server:9090
+  stats-server:
+    build:
+      context: .
+      dockerfile: stats/stats-server/Dockerfile
+    image: stats-server
+    container_name: stats-server
+    ports:
+      - "9090:9090"
+    depends_on:
+      - stats-db
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://stats-db:65432/statsdb
+      - SPRING_DATASOURCE_USERNAME=dbuser
+      - SPRING_DATASOURCE_PASSWORD=123456
+
+  user-service:
+    build:
+      context: ./core/user-service
+    image: ewm-service
+    container_name: user-service
+    depends_on:
+      - ewm-db
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://ewm-db:65434/ewmdb
+      - SPRING_DATASOURCE_USERNAME=dbuser
+      - SPRING_DATASOURCE_PASSWORD=123456
+
+  main-service:
+    build:
+      context: ./core/main-service
+    image: ewm-service
+    container_name: main-service
+    depends_on:
+      - stats-server
+      - ewm-db
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://ewm-db:65434/ewmdb
+      - SPRING_DATASOURCE_USERNAME=dbuser
+      - SPRING_DATASOURCE_PASSWORD=123456

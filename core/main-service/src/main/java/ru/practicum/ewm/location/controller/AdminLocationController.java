@@ -59,7 +59,7 @@ public class AdminLocationController {
     @GetMapping
     public Collection<LocationFullDtoOut> getAll(
             @RequestParam(required = false) String text,
-            @RequestParam(required = false) Long user,
+            @RequestParam(required = false) Long userId,
             @RequestParam(required = false) LocationState state,
             @RequestParam(required = false) @DecimalMin("-90.0")  @DecimalMax("90.0")  Double lat,
             @RequestParam(required = false) @DecimalMin("-180.0") @DecimalMax("180.0") Double lon,
@@ -71,7 +71,7 @@ public class AdminLocationController {
         log.debug("request for search locations by admin");
         LocationAdminFilter filter = LocationAdminFilter.builder()
                 .text(text)
-                .creator(user)
+                .creatorId(userId)
                 .state(state)
                 .minEvents(minEvents)
                 .maxEvents(maxEvents)

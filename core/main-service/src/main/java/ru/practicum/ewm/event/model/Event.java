@@ -4,7 +4,6 @@ import jakarta.persistence.*;
 import lombok.*;
 import ru.practicum.ewm.category.model.Category;
 import ru.practicum.ewm.location.model.Location;
-import ru.practicum.ewm.user.model.User;
 
 import java.time.LocalDateTime;
 
@@ -38,9 +37,7 @@ public class Event {
     private Category category;
 
     @ToString.Exclude
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "initiator_id", nullable = false)
-    private User initiator;
+    private Long initiatorId;
 
     @Column(name = "event_date", nullable = false)
     private LocalDateTime eventDate;

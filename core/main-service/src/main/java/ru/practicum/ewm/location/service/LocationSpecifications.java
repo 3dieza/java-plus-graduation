@@ -25,17 +25,20 @@ public class LocationSpecifications {
                 );
     }
 
-    public static Specification<Location> withCreator(Long user) {
-        if (user == null)
+    public static Specification<Location> withCreatorId(Long userId) {
+        if (userId == null) {
             return null;
-
-        if (user == 0) {
-            return (root, query, cb) ->
-                    cb.isNull(root.get("creator").get("id"));
         }
 
+        // Если ищем локации без создателя (null)
+        if (userId == 0) {
+            return (root, query, cb) ->
+                    cb.isNull(root.get("creatorId"));
+        }
+
+        // Обычный поиск по creatorId
         return (root, query, cb) ->
-                cb.equal(root.get("creator").get("id"), user);
+                cb.equal(root.get("creatorId"), userId);
     }
 
     public static Specification<Location> withState(LocationState state) {
