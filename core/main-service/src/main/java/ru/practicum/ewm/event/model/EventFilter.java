@@ -1,14 +1,17 @@
 package ru.practicum.ewm.event.model;
 
-import lombok.*;
+import java.time.LocalDateTime;
+import java.util.List;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.ToString;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
-import ru.practicum.ewm.location.model.Zone;
-
-import java.time.LocalDateTime;
-import java.util.List;
 
 import static ru.practicum.ewm.constants.Constants.DATE_TIME_FORMAT;
 

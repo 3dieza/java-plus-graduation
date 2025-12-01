@@ -6,7 +6,8 @@ import ru.practicum.ewm.event.dto.EventCreateDto;
 import ru.practicum.ewm.event.dto.EventDtoOut;
 import ru.practicum.ewm.event.dto.EventShortDtoOut;
 import ru.practicum.ewm.event.model.Event;
-import ru.practicum.ewm.location.mapper.LocationMapper;
+import ru.practicum.ewm.dto.LocationDto;
+import ru.practicum.ewm.dto.LocationFullDtoOut;
 import ru.practicum.ewm.user.dto.UserDtoOut;
 
 @UtilityClass
@@ -23,7 +24,7 @@ public class EventMapper {
                 .build();
     }
 
-    public EventDtoOut toDto(Event event, UserDtoOut initiator) {
+    public EventDtoOut toDto(Event event, UserDtoOut initiator, LocationDto location) {
         return EventDtoOut.builder()
                 .id(event.getId())
                 .annotation(event.getAnnotation())
@@ -34,13 +35,18 @@ public class EventMapper {
                 .description(event.getDescription())
                 .initiator(initiator)
                 .createdOn(event.getCreatedAt())
+                .publishedOn(event.getPublishedOn())
                 .state(event.getState())
                 .confirmedRequests(event.getConfirmedRequests())
                 .views(event.getViews())
-                .location(LocationMapper.toDto(event.getLocation()))
                 .participantLimit(event.getParticipantLimit())
                 .requestModeration(event.getRequestModeration())
+                .location(location)
                 .build();
+    }
+
+    public EventDtoOut toDto(Event event, UserDtoOut initiator) {
+        return toDto(event, initiator, null);
     }
 
     public EventShortDtoOut toShortDto(Event event, UserDtoOut initiator) {
@@ -59,5 +65,17 @@ public class EventMapper {
 
     public EventShortDtoOut toShortDto(Event event) {
         return toShortDto(event, null);
+    }
+
+    // маппер из Full DTO (из location-service) в короткий dto для события
+    public LocationDto toShortDto(LocationFullDtoOut src) {
+        if (src == null) {
+            return null;
+        }
+        return LocationDto.builder()
+                .id(src.getId())
+                .latitude(src.getLatitude())
+                .longitude(src.getLongitude())
+                .build();
     }
 }

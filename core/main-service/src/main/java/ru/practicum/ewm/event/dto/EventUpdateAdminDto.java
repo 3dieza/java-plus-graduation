@@ -5,12 +5,10 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
+import java.time.LocalDateTime;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
-import ru.practicum.ewm.location.dto.LocationDto;
-
-import java.time.LocalDateTime;
 
 import static ru.practicum.ewm.constants.Constants.DATE_TIME_FORMAT;
 
@@ -35,7 +33,7 @@ public class EventUpdateAdminDto {
     @JsonFormat(pattern = DATE_TIME_FORMAT)
     private LocalDateTime eventDate;
 
-    private LocationDto location;
+    private Long locationId;
 
     private Boolean paid;
 

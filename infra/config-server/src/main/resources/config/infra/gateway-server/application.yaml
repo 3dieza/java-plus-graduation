@@ -19,6 +19,12 @@ spring:
           uri: lb://stats-server
           predicates:
             - Path=/stats/**
+
+        # --- location-service ---
+        - id: location-service-route
+          uri: lb://location-service
+          predicates:
+            - Path=/locations/**, /admin/locations/**, /users/*/locations/**
         - id: main-service-route
           uri: lb://main-service
           predicates:

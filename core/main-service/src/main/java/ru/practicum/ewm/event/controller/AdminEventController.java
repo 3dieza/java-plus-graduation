@@ -4,21 +4,26 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
+import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 import ru.practicum.ewm.event.dto.EventDtoOut;
 import ru.practicum.ewm.event.dto.EventUpdateAdminDto;
 import ru.practicum.ewm.event.model.EventAdminFilter;
 import ru.practicum.ewm.event.model.EventState;
+import ru.practicum.ewm.event.model.Zone;
 import ru.practicum.ewm.event.service.EventService;
-import ru.practicum.ewm.location.model.Zone;
-
-import java.time.LocalDateTime;
-import java.util.Collection;
-import java.util.List;
 
 import static ru.practicum.ewm.constants.Constants.DATE_TIME_FORMAT;
 
@@ -39,7 +44,7 @@ public class AdminEventController {
             @RequestParam(required = false) @DateTimeFormat(pattern = DATE_TIME_FORMAT) LocalDateTime rangeStart,
             @RequestParam(required = false) @DateTimeFormat(pattern = DATE_TIME_FORMAT) LocalDateTime rangeEnd,
             @RequestParam(required = false) Long location,
-            @RequestParam(required = false) @DecimalMin("-90.0")  @DecimalMax("90.0")  Double lat,
+            @RequestParam(required = false) @DecimalMin("-90.0") @DecimalMax("90.0") Double lat,
             @RequestParam(required = false) @DecimalMin("-180.0") @DecimalMax("180.0") Double lon,
             @RequestParam(defaultValue = "10.0") @DecimalMin("0.0") Double radius,
             @RequestParam(defaultValue = "0") Integer offset,

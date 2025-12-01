@@ -1,10 +1,13 @@
 package ru.practicum.ewm.event.service;
 
-import ru.practicum.ewm.event.dto.*;
+import java.util.Collection;
+import ru.practicum.ewm.event.dto.EventCreateDto;
+import ru.practicum.ewm.event.dto.EventDtoOut;
+import ru.practicum.ewm.event.dto.EventShortDtoOut;
+import ru.practicum.ewm.event.dto.EventUpdateAdminDto;
+import ru.practicum.ewm.event.dto.EventUpdateDto;
 import ru.practicum.ewm.event.model.EventAdminFilter;
 import ru.practicum.ewm.event.model.EventFilter;
-
-import java.util.Collection;
 
 public interface EventService {
 

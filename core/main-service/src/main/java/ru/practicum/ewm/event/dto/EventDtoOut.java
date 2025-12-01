@@ -1,13 +1,17 @@
 package ru.practicum.ewm.event.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
-import lombok.*;
+import java.time.LocalDateTime;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.ToString;
 import ru.practicum.ewm.category.dto.CategoryDtoOut;
 import ru.practicum.ewm.event.model.EventState;
-import ru.practicum.ewm.location.dto.LocationDtoOut;
+import ru.practicum.ewm.dto.LocationDto;
 import ru.practicum.ewm.user.dto.UserDtoOut;
-
-import java.time.LocalDateTime;
 
 import static ru.practicum.ewm.constants.Constants.DATE_TIME_FORMAT;
 
@@ -25,7 +29,7 @@ public class EventDtoOut {
     private String description;
     private CategoryDtoOut category;
     private UserDtoOut initiator;
-    private LocationDtoOut location;
+    private LocationDto location;
 
     @JsonFormat(pattern = DATE_TIME_FORMAT)
     private LocalDateTime eventDate;
