@@ -98,7 +98,7 @@ services:
   main-service:
     build:
       context: ./core/main-service
-    image: ewm-service
+    image: main-service
     container_name: main-service
     depends_on:
       - stats-server
