@@ -3,7 +3,6 @@ package ru.practicum.ewm.participation.model;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
-import ru.practicum.ewm.event.model.Event;
 
 import java.time.LocalDateTime;
 
@@ -20,9 +19,8 @@ public class ParticipationRequest {
     @Column(name = "requester_id", nullable = false)
     private Long requesterId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "event_id", nullable = false)
-    private Event event;
+    @Column(name = "event_id", nullable = false)
+    private Long eventId;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime created;

@@ -5,6 +5,7 @@ import ru.practicum.ewm.participation.dto.EventRequestStatusUpdateResult;
 import ru.practicum.ewm.participation.dto.ParticipationRequestDto;
 
 import java.util.List;
+import ru.practicum.ewm.participation.dto.RequestsCountDto;
 
 public interface ParticipationRequestService {
 
@@ -47,4 +48,10 @@ public interface ParticipationRequestService {
     EventRequestStatusUpdateResult updateRequestStatuses(Long userId,
                                                          Long eventId,
                                                          EventRequestStatusUpdateRequest request);
+
+    /**
+     * Внутренний метод для event-service:
+     * вернуть количество подтверждённых заявок по списку событий.
+     */
+    List<RequestsCountDto> countConfirmedRequestsForEvents(List<Long> eventIds);
 }

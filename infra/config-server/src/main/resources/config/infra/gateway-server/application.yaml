@@ -11,20 +11,34 @@ spring:
           enabled: true
           lower-case-service-id: true
       routes:
+        # --- participation (main-service): заявки на участие ---
+        - id: participation-service-route
+          uri: lb://main-service
+          predicates:
+            - Path=/users/*/events/*/requests/**
+
+        # --- event-service: только события ---
+        - id: event-service-route
+          uri: lb://event-service
+          predicates:
+            - Path=/events/**,/admin/events/**,/users/*/events,/users/*/events/*
+
         - id: user-service-route
           uri: lb://user-service
           predicates:
             - Path=/admin/users/**
+
         - id: stats-service-route
           uri: lb://stats-server
           predicates:
             - Path=/stats/**
 
-        # --- location-service ---
         - id: location-service-route
           uri: lb://location-service
           predicates:
-            - Path=/locations/**, /admin/locations/**, /users/*/locations/**
+            - Path=/locations/**,/admin/locations/**,/users/*/locations/**
+
+        # Остальное в main-service (если нужно)
         - id: main-service-route
           uri: lb://main-service
           predicates:

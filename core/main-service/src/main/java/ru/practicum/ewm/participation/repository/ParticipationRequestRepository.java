@@ -5,9 +5,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import ru.practicum.ewm.participation.model.ParticipationRequest;
 import ru.practicum.ewm.participation.model.RequestStatus;
-import ru.practicum.ewm.participation.model.RequestsCount;
 
 import java.util.List;
+import ru.practicum.ewm.participation.model.RequestsCount;
 
 public interface ParticipationRequestRepository extends JpaRepository<ParticipationRequest, Long> {
     boolean existsByRequesterIdAndEventId(Long userId, Long eventId);
@@ -19,9 +19,9 @@ public interface ParticipationRequestRepository extends JpaRepository<Participat
     Integer countByEventIdAndStatus(Long eventId, RequestStatus status);
 
     @Query("""
-            SELECT pr.event.id as id, COUNT(pr) as count
+            SELECT pr.eventId as id, COUNT(pr) as count
             FROM ParticipationRequest pr
-            WHERE pr.event.id IN :ids AND pr.status = 'CONFIRMED'
-            GROUP BY pr.event.id""")
+            WHERE pr.eventId IN :ids AND pr.status = 'CONFIRMED'
+            GROUP BY pr.eventId""")
     List<RequestsCount> countConfirmedRequestsForEvents(@Param("ids") List<Long> ids);
 }

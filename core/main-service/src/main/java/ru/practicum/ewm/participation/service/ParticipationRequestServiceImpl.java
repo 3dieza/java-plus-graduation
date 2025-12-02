@@ -1,13 +1,17 @@
 package ru.practicum.ewm.participation.service;
 
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import ru.practicum.ewm.event.client.UserClient;
-import ru.practicum.ewm.event.model.Event;
-import ru.practicum.ewm.event.model.EventState;
-import ru.practicum.ewm.event.repository.EventRepository;
+import ru.practicum.ewm.client.EventClient;
+import ru.practicum.ewm.client.UserClient;
+import ru.practicum.ewm.dto.EventInternalDto;
+import ru.practicum.ewm.dto.EventState;
 import ru.practicum.ewm.exception.ConditionNotMetException;
 import ru.practicum.ewm.exception.ForbiddenException;
 import ru.practicum.ewm.exception.NoAccessException;
@@ -15,15 +19,12 @@ import ru.practicum.ewm.exception.NotFoundException;
 import ru.practicum.ewm.participation.dto.EventRequestStatusUpdateRequest;
 import ru.practicum.ewm.participation.dto.EventRequestStatusUpdateResult;
 import ru.practicum.ewm.participation.dto.ParticipationRequestDto;
+import ru.practicum.ewm.participation.dto.RequestsCountDto;
 import ru.practicum.ewm.participation.mapper.ParticipationRequestMapper;
 import ru.practicum.ewm.participation.model.ParticipationRequest;
 import ru.practicum.ewm.participation.model.RequestStatus;
+import ru.practicum.ewm.participation.model.RequestsCount;
 import ru.practicum.ewm.participation.repository.ParticipationRequestRepository;
-
-import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.List;
 
 import static ru.practicum.ewm.participation.model.RequestStatus.CANCELED;
 import static ru.practicum.ewm.participation.model.RequestStatus.CONFIRMED;
@@ -35,7 +36,7 @@ import static ru.practicum.ewm.participation.model.RequestStatus.CONFIRMED;
 public class ParticipationRequestServiceImpl implements ParticipationRequestService {
 
     private final UserClient userClient;
-    private final EventRepository eventRepo;
+    private final EventClient eventClient;
     private final ParticipationRequestRepository requestRepo;
 
     /**
@@ -58,7 +59,7 @@ public class ParticipationRequestServiceImpl implements ParticipationRequestServ
             throw new NotFoundException("User", userId);
         }
 
-        Event event = getEventById(eventId);
+        EventInternalDto event = getEventById(eventId);
 
         checkRequestNotExists(userId, eventId);
         checkNotEventInitiator(userId, event);
@@ -69,7 +70,7 @@ public class ParticipationRequestServiceImpl implements ParticipationRequestServ
 
         ParticipationRequest request = new ParticipationRequest();
         request.setRequesterId(userId);
-        request.setEvent(event);
+        request.setEventId(eventId);
         request.setCreated(LocalDateTime.now().truncatedTo(ChronoUnit.MILLIS));
         request.setStatus(status);
 
@@ -119,7 +120,7 @@ public class ParticipationRequestServiceImpl implements ParticipationRequestServ
     public EventRequestStatusUpdateResult updateRequestStatuses(Long userId,
                                                                 Long eventId,
                                                                 EventRequestStatusUpdateRequest request) {
-        Event event = getEventWithCheck(userId, eventId);
+        EventInternalDto event = getEventWithCheck(userId, eventId);
 
         List<ParticipationRequest> requests = getPendingRequestsOrThrow(request.getRequestIds());
 
@@ -148,7 +149,7 @@ public class ParticipationRequestServiceImpl implements ParticipationRequestServ
             throw new NotFoundException("User", initiatorId);
         }
 
-        Event event = getEventById(eventId);
+        EventInternalDto event = getEventById(eventId);
 
         if (!event.getInitiatorId().equals(initiatorId)) {
             throw new NoAccessException("Only initiator can view requests of event");
@@ -187,9 +188,12 @@ public class ParticipationRequestServiceImpl implements ParticipationRequestServ
     }
 
     // Аналогично, получаем событие из базы или кидаем исключение.
-    private Event getEventById(Long eventId) {
-        return eventRepo.findById(eventId)
-                .orElseThrow(() -> new NotFoundException("Event", eventId));
+    private EventInternalDto getEventById(Long eventId) {
+        try {
+            return eventClient.getEventById(eventId);
+        } catch (Exception e) {
+            throw new NotFoundException("Event", eventId);
+        }
     }
 
     // Проверка: заявка уже существует? Если да — кидаем ошибку (не надо дублировать).
@@ -200,21 +204,21 @@ public class ParticipationRequestServiceImpl implements ParticipationRequestServ
     }
 
     // Проверяем, что инициатор события не пытается подать заявку на своё событие (это нечестно).
-    private void checkNotEventInitiator(Long userId, Event event) {
+    private void checkNotEventInitiator(Long userId, EventInternalDto event) {
         if (event.getInitiatorId().equals(userId)) {
             throw new ConditionNotMetException("Initiator cannot participate in their own event.");
         }
     }
 
     // Проверяем, что событие опубликовано (в смысле — не в черновике и не отменено).
-    private void checkEventIsPublished(Event event) {
+    private void checkEventIsPublished(EventInternalDto event) {
         if (!event.getState().equals(EventState.PUBLISHED)) {
             throw new ConditionNotMetException("Cannot participate in an unpublished event.");
         }
     }
 
     // Проверяем, не достигнут ли лимит участников события.
-    private void checkParticipantLimit(Event event, Long eventId) {
+    private void checkParticipantLimit(EventInternalDto event, Long eventId) {
         long confirmed = requestRepo.countByEventIdAndStatus(eventId, CONFIRMED);
         if (event.getParticipantLimit() > 0 && confirmed >= event.getParticipantLimit()) {
             throw new ConditionNotMetException("Event participant limit has been reached.");
@@ -222,7 +226,7 @@ public class ParticipationRequestServiceImpl implements ParticipationRequestServ
     }
 
     // Решаем, будет ли заявка сразу подтверждена или в статусе ожидания (зависит от настроек события).
-    private RequestStatus determineRequestStatus(Event event) {
+    private RequestStatus determineRequestStatus(EventInternalDto event) {
         return (!Boolean.TRUE.equals(event.getRequestModeration()) || event.getParticipantLimit() == 0)
                 ? RequestStatus.CONFIRMED
                 : RequestStatus.PENDING;
@@ -240,9 +244,8 @@ public class ParticipationRequestServiceImpl implements ParticipationRequestServ
      * @throws ForbiddenException       если пользователь не инициатор
      * @throws ConditionNotMetException если событие не опубликовано
      */
-    private Event getEventWithCheck(Long userId, Long eventId) {
-        Event event = eventRepo.findById(eventId)
-                .orElseThrow(() -> new NotFoundException("Event", eventId));
+    private EventInternalDto getEventWithCheck(Long userId, Long eventId) {
+        EventInternalDto event = getEventById(eventId);
 
         if (!event.getInitiatorId().equals(userId)) {
             throw new ForbiddenException("The user is not the initiator of the event");
@@ -282,7 +285,7 @@ public class ParticipationRequestServiceImpl implements ParticipationRequestServ
      * @param requests список заявок
      * @return результат обработки заявок
      */
-    private EventRequestStatusUpdateResult confirmRequests(Event event, List<ParticipationRequest> requests) {
+    private EventRequestStatusUpdateResult confirmRequests(EventInternalDto event, List<ParticipationRequest> requests) {
         checkIfLimitAvailableOrThrow(event);
 
         int limit = event.getParticipantLimit();
@@ -314,7 +317,7 @@ public class ParticipationRequestServiceImpl implements ParticipationRequestServ
     /**
      * Проверяет, достигнут ли лимит участников события, и выбрасывает исключение, если да.
      */
-    private void checkIfLimitAvailableOrThrow(Event event) {
+    private void checkIfLimitAvailableOrThrow(EventInternalDto event) {
         int limit = event.getParticipantLimit();
         long confirmedCount = requestRepo.countByEventIdAndStatus(event.getId(), RequestStatus.CONFIRMED);
         if (limit != 0 && Boolean.TRUE.equals(event.getRequestModeration()) && confirmedCount >= limit) {
@@ -325,7 +328,7 @@ public class ParticipationRequestServiceImpl implements ParticipationRequestServ
     /**
      * Определяет, должна ли заявка подтверждаться автоматически.
      */
-    private boolean shouldAutoConfirm(Event event) {
+    private boolean shouldAutoConfirm(EventInternalDto event) {
         return event.getParticipantLimit() == 0 || Boolean.FALSE.equals(event.getRequestModeration());
     }
 
@@ -365,4 +368,17 @@ public class ParticipationRequestServiceImpl implements ParticipationRequestServ
         );
     }
 
+    @Override
+    public List<RequestsCountDto> countConfirmedRequestsForEvents(List<Long> eventIds) {
+        List<RequestsCount> projections = requestRepo.countConfirmedRequestsForEvents(eventIds);
+
+        return projections.stream()
+                .map(p -> {
+                    RequestsCountDto dto = new RequestsCountDto();
+                    dto.setEventId(p.getId());
+                    dto.setCount(p.getCount());
+                    return dto;
+                })
+                .toList();
+    }
 }

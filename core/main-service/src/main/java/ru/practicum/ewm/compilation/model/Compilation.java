@@ -1,10 +1,21 @@
 package ru.practicum.ewm.compilation.model;
 
-import jakarta.persistence.*;
-import lombok.*;
-import ru.practicum.ewm.event.model.Event;
-
+import jakarta.persistence.CollectionTable;
+import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.Table;
+import java.util.HashSet;
 import java.util.Set;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Getter
 @Setter
@@ -25,11 +36,15 @@ public class Compilation {
     @Column(nullable = false)
     private Boolean pinned;
 
-    @ManyToMany
-    @JoinTable(
+    /**
+     * Просто набор ID событий, которые входят в подборку.
+     * JPA сама мапит это на таблицу compilation_events (compilation_id, event_id).
+     */
+    @ElementCollection
+    @CollectionTable(
             name = "compilation_events",
-            joinColumns = @JoinColumn(name = "compilation_id"),
-            inverseJoinColumns = @JoinColumn(name = "event_id")
+            joinColumns = @JoinColumn(name = "compilation_id")
     )
-    private Set<Event> events;
+    @Column(name = "event_id")
+    private Set<Long> events = new HashSet<>();
 }

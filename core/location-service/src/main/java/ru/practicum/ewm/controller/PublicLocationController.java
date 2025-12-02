@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import ru.practicum.ewm.dto.LocationAutoRequest;
 import ru.practicum.ewm.dto.LocationDtoOut;
+import ru.practicum.ewm.dto.LocationFullDtoOut;
 import ru.practicum.ewm.model.LocationPublicFilter;
 import ru.practicum.ewm.model.Zone;
 import ru.practicum.ewm.service.LocationService;
@@ -58,10 +59,10 @@ public class PublicLocationController {
     }
 
     @GetMapping("/{id}")
-    public LocationDtoOut get(@PathVariable @Min(1) Long id) {
+    public LocationFullDtoOut get(@PathVariable @Min(1) Long id) {
 
         log.debug("request for get location id:{}", id);
-        return locationService.getApproved(id);
+        return locationService.getByIdForAdmin(id);
     }
 
     @PostMapping("/auto")
