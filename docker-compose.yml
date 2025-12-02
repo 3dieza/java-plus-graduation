@@ -50,8 +50,44 @@ services:
   user-service:
     build:
       context: ./core/user-service
-    image: ewm-service
+    image: user-service
     container_name: user-service
+    depends_on:
+      - ewm-db
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://ewm-db:65434/ewmdb
+      - SPRING_DATASOURCE_USERNAME=dbuser
+      - SPRING_DATASOURCE_PASSWORD=123456
+
+  request-service:
+    build:
+      context: ./core/request-service
+    image: request-service
+    container_name: request-service
+    depends_on:
+      - ewm-db
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://ewm-db:65434/ewmdb
+      - SPRING_DATASOURCE_USERNAME=dbuser
+      - SPRING_DATASOURCE_PASSWORD=123456
+
+  location-service:
+    build:
+      context: ./core/location-service
+    image: location-service
+    container_name: location-service
+    depends_on:
+      - ewm-db
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://ewm-db:65434/ewmdb
+      - SPRING_DATASOURCE_USERNAME=dbuser
+      - SPRING_DATASOURCE_PASSWORD=123456
+
+  event-service:
+    build:
+      context: ./core/event-service
+    image: event-service
+    container_name: event-service
     depends_on:
       - ewm-db
     environment:
