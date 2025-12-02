@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import ru.practicum.ewm.dto.RequestsCountDto;
 
 @FeignClient(
-        name = "main-service",
+        name = "request-service",
         contextId = "requestsClient",
         path = "/internal/requests"
 )
