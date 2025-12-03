@@ -36,8 +36,8 @@ spring:
           predicates:
             - Path=/locations/**,/admin/locations/**,/users/*/locations/**
 
-        - id: main-service-route
-          uri: lb://main-service
+        - id: category-service-route
+          uri: lb://category-service
           predicates:
             - Path=/**
 eureka:

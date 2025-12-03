@@ -6,7 +6,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import ru.practicum.ewm.dto.CategoryDtoOut;
 
 @FeignClient(
-        name = "main-service",
+        name = "category-service",
         contextId = "categoryClient",
         path = "/categories"
 )

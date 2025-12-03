@@ -95,11 +95,11 @@ services:
       - SPRING_DATASOURCE_USERNAME=dbuser
       - SPRING_DATASOURCE_PASSWORD=123456
 
-  main-service:
+  category-service:
     build:
-      context: ./core/main-service
-    image: main-service
-    container_name: main-service
+      context: ./core/category-service
+    image: category-service
+    container_name: category-service
     depends_on:
       - stats-server
       - ewm-db

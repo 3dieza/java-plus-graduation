@@ -6,7 +6,7 @@ server:
 
 spring:
   application:
-    name: main-service
+    name: category-service
 
   output:
     ansi:

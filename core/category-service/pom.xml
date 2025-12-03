@@ -7,10 +7,10 @@
         <version>0.0.1-SNAPSHOT</version>
     </parent>
 
-    <artifactId>main-service</artifactId>
+    <artifactId>category-service</artifactId>
     <packaging>jar</packaging>
 
-    <name>ewm-service</name>
+    <name>category-service</name>
     <url>http://maven.apache.org</url>
 
     <properties>
