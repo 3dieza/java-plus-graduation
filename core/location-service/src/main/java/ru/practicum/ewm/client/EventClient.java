@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Map;
 
 @FeignClient(
-        name = "category-service",
+        name = "event-service",
         path = "/admin/events"
 )
 public interface EventClient {
