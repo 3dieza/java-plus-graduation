@@ -23,6 +23,7 @@ public class InternalEventController {
     public Boolean existsByCategory(@RequestParam Long categoryId) {
         return eventRepository.existsByCategoryId(categoryId);
     }
+
     @GetMapping("/{eventId}")
     public EventInternalDto getEventById(@PathVariable Long eventId) {
         Event event = eventRepository.findById(eventId)

@@ -23,37 +23,37 @@ import static ru.practicum.ewm.constants.Constants.DATE_TIME_FORMAT;
 @ToString
 @NoArgsConstructor
 @AllArgsConstructor
-@FieldDefaults(level = AccessLevel.PRIVATE )
+@FieldDefaults(level = AccessLevel.PRIVATE)
 public class EventFilter {
-      String text;
-      List<Long> categories;
-      Boolean paid;
+    String text;
+    List<Long> categories;
+    Boolean paid;
 
     @DateTimeFormat(pattern = DATE_TIME_FORMAT)
-      LocalDateTime rangeStart;
+    LocalDateTime rangeStart;
 
     @DateTimeFormat(pattern = DATE_TIME_FORMAT)
-      LocalDateTime rangeEnd;
+    LocalDateTime rangeEnd;
 
     @Builder.Default
-      Boolean onlyAvailable = false;
+    Boolean onlyAvailable = false;
 
     @Builder.Default
-      EventState state = EventState.PUBLISHED;
+    EventState state = EventState.PUBLISHED;
 
-      Long locationId;
-      Zone zone;
-
-    @Builder.Default
-      String sort = "EVENT_DATE";
+    Long locationId;
+    Zone zone;
 
     @Builder.Default
-      Integer from = 0;
+    String sort = "EVENT_DATE";
 
     @Builder.Default
-      Integer size = 10;
+    Integer from = 0;
 
-      Pageable pageable;
+    @Builder.Default
+    Integer size = 10;
+
+    Pageable pageable;
 
 
     public Pageable getPageable() {
