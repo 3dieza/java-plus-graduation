@@ -3,6 +3,10 @@ spring:
     name: event-service
   config:
     import: "optional:configserver:http://localhost:8888"
+  cloud:
+    loadbalancer:
+      retry:
+        enabled: true
 
 eureka:
   client:

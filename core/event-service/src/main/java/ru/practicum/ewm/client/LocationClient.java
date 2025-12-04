@@ -5,11 +5,13 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import ru.practicum.ewm.config.EventServiceConfiguration;
 import ru.practicum.ewm.dto.LocationAutoRequest;
 import ru.practicum.ewm.dto.LocationFullDtoOut;
 
 @FeignClient(
         name = "location-service",
+        configuration = EventServiceConfiguration.class,
         path = "/locations"
 )
 public interface LocationClient {
