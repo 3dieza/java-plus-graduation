@@ -1,12 +1,14 @@
 package ru.practicum.ewm.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
+import lombok.experimental.FieldDefaults;
 import ru.practicum.ewm.model.LocationState;
 
 @Getter
@@ -15,14 +17,15 @@ import ru.practicum.ewm.model.LocationState;
 @ToString
 @NoArgsConstructor
 @AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE)
 public class LocationFullDtoOut {
-    private Long id;
-    private String name;
-    private String address;
+    Long id;
+    String name;
+    String address;
     @JsonProperty(value = "lat")
-    private Double latitude;
+    Double latitude;
     @JsonProperty(value = "lon")
-    private Double longitude;
-    private Long creatorId;
-    private LocationState state;
+    Double longitude;
+    Long creatorId;
+    LocationState state;
 }

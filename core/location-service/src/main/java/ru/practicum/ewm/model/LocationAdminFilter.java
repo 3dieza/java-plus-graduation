@@ -1,10 +1,12 @@
 package ru.practicum.ewm.model;
 
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
+import lombok.experimental.FieldDefaults;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -14,18 +16,19 @@ import org.springframework.data.domain.Sort;
 @Builder
 @ToString
 @AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE)
 public class LocationAdminFilter {
-    private String text;
-    private Long creatorId;
-    private LocationState state;
-    private Zone zone;
-    private Integer minEvents;
-    private Integer maxEvents;
+    String text;
+    Long creatorId;
+    LocationState state;
+    Zone zone;
+    Integer minEvents;
+    Integer maxEvents;
 
-    private Integer offset;
-    private Integer limit;
+    Integer offset;
+    Integer limit;
 
-    private Pageable pageable;
+    Pageable pageable;
 
     public Pageable getPageable() {
         if (pageable == null) {

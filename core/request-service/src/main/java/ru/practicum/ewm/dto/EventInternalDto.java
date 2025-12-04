@@ -1,13 +1,16 @@
 package ru.practicum.ewm.dto;
 
 
+import lombok.AccessLevel;
 import lombok.Data;
+import lombok.experimental.FieldDefaults;
 
 @Data
+@FieldDefaults(level = AccessLevel.PRIVATE)
 public class EventInternalDto {
-    private Long id;
-    private Long initiatorId;
-    private EventState state;
-    private Integer participantLimit;
-    private Boolean requestModeration;
+    Long id;
+    Long initiatorId;
+    EventState state;
+    Integer participantLimit;
+    Boolean requestModeration;
 }

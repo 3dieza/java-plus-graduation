@@ -9,29 +9,32 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.experimental.FieldDefaults;
 
 @Getter
 @Setter
 @Entity
 @Table(name = "participation_requests")
+@FieldDefaults(level = AccessLevel.PRIVATE)
 public class ParticipationRequest {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    Long id;
 
     @Column(name = "requester_id", nullable = false)
-    private Long requesterId;
+    Long requesterId;
 
     @Column(name = "event_id", nullable = false)
-    private Long eventId;
+    Long eventId;
 
     @Column(name = "created_at", nullable = false)
-    private LocalDateTime created;
+    LocalDateTime created;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private RequestStatus status;
+    RequestStatus status;
 }

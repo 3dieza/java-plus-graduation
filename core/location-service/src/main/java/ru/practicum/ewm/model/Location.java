@@ -8,12 +8,14 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
+import lombok.experimental.FieldDefaults;
 
 @Entity
 @Getter
@@ -23,29 +25,30 @@ import lombok.ToString;
 @NoArgsConstructor
 @AllArgsConstructor
 @Table(name = "locations")
+@FieldDefaults(level = AccessLevel.PRIVATE)
 public class Location {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    Long id;
 
     @ToString.Exclude
     @Column(name = "creator_id")
-    private Long creatorId;
+    Long creatorId;
 
     @Column(nullable = false)
-    private String name;
+    String name;
 
-    private String address;
-
-    @Column(nullable = false)
-    private Double latitude;
+    String address;
 
     @Column(nullable = false)
-    private Double longitude;
+    Double latitude;
+
+    @Column(nullable = false)
+    Double longitude;
 
     @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private LocationState state = LocationState.PENDING;
+    LocationState state = LocationState.PENDING;
 }
