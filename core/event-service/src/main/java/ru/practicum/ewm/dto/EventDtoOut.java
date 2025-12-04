@@ -2,12 +2,14 @@ package ru.practicum.ewm.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import java.time.LocalDateTime;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
+import lombok.experimental.FieldDefaults;
 import ru.practicum.ewm.model.EventState;
 
 import static ru.practicum.ewm.constants.Constants.DATE_TIME_FORMAT;
@@ -18,31 +20,32 @@ import static ru.practicum.ewm.constants.Constants.DATE_TIME_FORMAT;
 @ToString
 @NoArgsConstructor
 @AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE)
 public class EventDtoOut {
 
-    private Long id;
-    private String title;
-    private String annotation;
-    private String description;
-    private CategoryDtoOut category;
-    private UserDtoOut initiator;
-    private LocationDto location;
+    Long id;
+    String title;
+    String annotation;
+    String description;
+    CategoryDtoOut category;
+    UserDtoOut initiator;
+    LocationDto location;
 
     @JsonFormat(pattern = DATE_TIME_FORMAT)
-    private LocalDateTime eventDate;
+    LocalDateTime eventDate;
 
     @JsonFormat(pattern = DATE_TIME_FORMAT)
-    private LocalDateTime createdOn;
+    LocalDateTime createdOn;
 
     @JsonFormat(pattern = DATE_TIME_FORMAT)
-    private LocalDateTime publishedOn;
+    LocalDateTime publishedOn;
 
-    private Boolean paid;
-    private Integer participantLimit;
-    private Boolean requestModeration;
-    private EventState state;
-    private Integer confirmedRequests;
+    Boolean paid;
+    Integer participantLimit;
+    Boolean requestModeration;
+    EventState state;
+    Integer confirmedRequests;
 
     @Builder.Default
-    private Integer views = 0;
+    Integer views = 0;
 }

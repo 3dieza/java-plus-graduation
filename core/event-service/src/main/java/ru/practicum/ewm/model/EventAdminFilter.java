@@ -2,12 +2,14 @@ package ru.practicum.ewm.model;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
+import lombok.experimental.FieldDefaults;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -21,28 +23,29 @@ import static ru.practicum.ewm.constants.Constants.DATE_TIME_FORMAT;
 @ToString
 @NoArgsConstructor
 @AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE )
 public class EventAdminFilter {
 
-    private List<Long> users;
-    private List<Long> categories;
-    private List<EventState> states;
+      List<Long> users;
+      List<Long> categories;
+      List<EventState> states;
 
     @DateTimeFormat(pattern = DATE_TIME_FORMAT)
-    private LocalDateTime rangeStart;
+      LocalDateTime rangeStart;
 
     @DateTimeFormat(pattern = DATE_TIME_FORMAT)
-    private LocalDateTime rangeEnd;
+      LocalDateTime rangeEnd;
 
-    private Long locationId;
-    private Zone zone;
-
-    @Builder.Default
-    private Integer from = 0;
+      Long locationId;
+      Zone zone;
 
     @Builder.Default
-    private Integer size = 10;
+      Integer from = 0;
 
-    private Pageable pageable;
+    @Builder.Default
+      Integer size = 10;
+
+      Pageable pageable;
 
     public Pageable getPageable() {
         if (pageable == null) {

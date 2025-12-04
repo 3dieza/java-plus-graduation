@@ -2,11 +2,13 @@ package ru.practicum.ewm.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import java.time.LocalDateTime;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.experimental.FieldDefaults;
 
 import static ru.practicum.ewm.constants.Constants.DATE_TIME_FORMAT;
 
@@ -15,20 +17,21 @@ import static ru.practicum.ewm.constants.Constants.DATE_TIME_FORMAT;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE)
 public class EventShortDtoOut {
 
-    private Long id;
-    private String title;
-    private String annotation;
-    private CategoryDtoOut category;
-    private UserDtoOut initiator;
+    Long id;
+    String title;
+    String annotation;
+    CategoryDtoOut category;
+    UserDtoOut initiator;
 
     @JsonFormat(pattern = DATE_TIME_FORMAT)
-    private LocalDateTime eventDate;
+    LocalDateTime eventDate;
 
-    private Boolean paid;
-    private Integer confirmedRequests;
+    Boolean paid;
+    Integer confirmedRequests;
 
     @Builder.Default
-    private Integer views = 0;
+    Integer views = 0;
 }
