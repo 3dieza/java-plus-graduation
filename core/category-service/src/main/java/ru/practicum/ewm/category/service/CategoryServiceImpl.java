@@ -1,25 +1,23 @@
 package ru.practicum.ewm.category.service;
 
-import lombok.AllArgsConstructor;
+import java.util.Collection;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.practicum.ewm.category.dto.CategoryDto;
 import ru.practicum.ewm.category.dto.CategoryDtoOut;
-import ru.practicum.ewm.client.EventClient;
-import ru.practicum.ewm.exception.NotFoundException;
 import ru.practicum.ewm.category.mapper.CategoryMapper;
 import ru.practicum.ewm.category.model.Category;
 import ru.practicum.ewm.category.repository.CategoryRepository;
-
-import java.util.Collection;
+import ru.practicum.ewm.client.EventClient;
+import ru.practicum.ewm.exception.NotFoundException;
 
 @Service
-@AllArgsConstructor
-@Transactional(readOnly = true)
+@RequiredArgsConstructor
 public class CategoryServiceImpl implements CategoryService {
 
     private final CategoryRepository categoryRepository;
-    public final EventClient eventClient;
+    private final EventClient eventClient;
 
     @Override
     public Collection<CategoryDtoOut> getAll(Integer offset, Integer limit) {
@@ -32,7 +30,7 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     public CategoryDtoOut get(Long id) {
         Category category = categoryRepository.findById(id)
-            .orElseThrow(() -> new NotFoundException("Category", id));
+                .orElseThrow(() -> new NotFoundException("Category", id));
 
         return CategoryMapper.toDto(category);
     }
@@ -57,17 +55,18 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
-    @Transactional
     public void delete(Long id) {
-
+        // 1. Быстрая проверка существования (короткая операция, без общей @Transactional)
         if (!categoryRepository.existsById(id)) {
             throw new NotFoundException("Category", id);
         }
 
+        // 2. Внешний вызов — строго вне транзакции сервиса
         if (Boolean.TRUE.equals(eventClient.existsByCategoryId(id))) {
             throw new IllegalStateException("Cannot delete category. There are events associated with it.");
         }
 
+        // 3. Удаление: deleteById у Spring Data JPA сам оборачивается в транзакцию
         categoryRepository.deleteById(id);
     }
 }

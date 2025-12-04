@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import ru.practicum.ewm.client.EventClient;
 import ru.practicum.ewm.client.UserClient;
 import ru.practicum.ewm.dto.EventInternalDto;
@@ -31,67 +32,61 @@ import static ru.practicum.ewm.model.RequestStatus.CONFIRMED;
 
 @Slf4j
 @Service
-@Transactional(readOnly = true)
 @RequiredArgsConstructor
 public class ParticipationRequestServiceImpl implements ParticipationRequestService {
 
     private final UserClient userClient;
     private final EventClient eventClient;
     private final ParticipationRequestRepository requestRepo;
+    private final TransactionTemplate transactionTemplate;
 
     /**
      * Создает запрос на участие пользователя в событии.
-     *
-     * @param userId  ID пользователя, который хочет подать заявку
-     * @param eventId ID события, в котором хотят участвовать
-     * @return DTO созданной заявки
-     * @throws NotFoundException        если пользователь или событие не найдены
-     * @throws ConditionNotMetException если заявка уже существует, или инициатор пытается участвовать в своём событии,
-     *                                  или событие не опубликовано, или достигнут лимит участников
+     * <p>
+     * Внешние HTTP-вызовы (user / event) выполняются вне транзакции,
+     * вся работа с БД — внутри TransactionTemplate.
      */
-    @Transactional
+    @Override
     public ParticipationRequestDto createRequest(Long userId, Long eventId) {
         log.debug("Пользователь {} пытается создать запрос участия для события {}", userId, eventId);
 
-        try {
-            userClient.getUserById(userId);
-        } catch (Exception e) {
-            throw new NotFoundException("User", userId);
-        }
-
+        // --- внешние вызовы, без транзакции ---
+        validateUserExists(userId);
         EventInternalDto event = getEventById(eventId);
 
-        checkRequestNotExists(userId, eventId);
-        checkNotEventInitiator(userId, event);
-        checkEventIsPublished(event);
-        checkParticipantLimit(event, eventId);
+        // --- транзакционный блок только для работы с БД ---
+        return transactionTemplate.execute(status -> {
+            // проверки, использующие репозиторий
+            checkRequestNotExists(userId, eventId);
+            checkNotEventInitiator(userId, event);
+            checkEventIsPublished(event);
+            checkParticipantLimit(event, eventId);
 
-        RequestStatus status = determineRequestStatus(event);
+            RequestStatus requestStatus = determineRequestStatus(event);
 
-        ParticipationRequest request = new ParticipationRequest();
-        request.setRequesterId(userId);
-        request.setEventId(eventId);
-        request.setCreated(LocalDateTime.now().truncatedTo(ChronoUnit.MILLIS));
-        request.setStatus(status);
+            ParticipationRequest request = new ParticipationRequest();
+            request.setRequesterId(userId);
+            request.setEventId(eventId);
+            request.setCreated(LocalDateTime.now().truncatedTo(ChronoUnit.MILLIS));
+            request.setStatus(requestStatus);
 
-        log.debug("Создана заявка от пользователя {} на событие {} со статусом {}", userId, eventId, status);
-        return ParticipationRequestMapper.toDto(requestRepo.save(request));
+            log.debug(
+                    "Создана заявка от пользователя {} на событие {} со статусом {}",
+                    userId, eventId, requestStatus
+            );
+
+            return ParticipationRequestMapper.toDto(requestRepo.save(request));
+        });
     }
 
     /**
      * Получает список всех заявок текущего пользователя.
-     *
-     * @param userId ID пользователя
-     * @return список DTO заявок
-     * @throws NotFoundException если пользователь не найден
+     * Внешний вызов — вне транзакции, репозиторий сам откроет краткую транзакцию.
      */
     @Override
     public List<ParticipationRequestDto> getUserRequests(Long userId) {
-        try {
-            userClient.getUserById(userId);
-        } catch (Exception e) {
-            throw new NotFoundException("User", userId);
-        }
+        validateUserExists(userId);
+
         return requestRepo.findAllByRequesterId(userId).stream()
                 .map(ParticipationRequestMapper::toDto)
                 .toList();
@@ -100,54 +95,35 @@ public class ParticipationRequestServiceImpl implements ParticipationRequestServ
     /**
      * Обновляет статус заявок на участие в событии (подтверждение или отклонение).
      * <p>
-     * Проверяет, что:
-     * - пользователь является инициатором события;
-     * - событие опубликовано;
-     * - все заявки находятся в статусе ожидания;
-     * - не превышен лимит участников.
-     * </p>
-     *
-     * @param userId  ID пользователя (инициатора события)
-     * @param eventId ID события
-     * @param request объект с новыми статусами и списком ID заявок
-     * @return результат изменения статусов (подтверждённые и отклонённые заявки)
-     * @throws NotFoundException        если событие не найдено
-     * @throws ForbiddenException       если пользователь не является инициатором
-     * @throws ConditionNotMetException если событие не опубликовано или заявки не в статусе ожидания
-     * @throws IllegalArgumentException если передан неверный статус
+     * Внешний вызов в EventService — вне транзакции.
+     * Загрузка и изменение заявок + проверки лимитов — внутри TransactionTemplate.
      */
-    @Transactional
+    @Override
     public EventRequestStatusUpdateResult updateRequestStatuses(Long userId,
                                                                 Long eventId,
                                                                 EventRequestStatusUpdateRequest request) {
+        // внешний вызов, без транзакции
         EventInternalDto event = getEventWithCheck(userId, eventId);
 
-        List<ParticipationRequest> requests = getPendingRequestsOrThrow(request.getRequestIds());
+        return transactionTemplate.execute(status -> {
+            List<ParticipationRequest> requests = getPendingRequestsOrThrow(request.getRequestIds());
 
-        return switch (request.getStatus()) {
-            case "CONFIRMED" -> confirmRequests(event, requests);
-            case "REJECTED" -> rejectRequests(requests);
-            default -> throw new IllegalArgumentException("Incorrect status: " + request.getStatus());
-        };
+            return switch (request.getStatus()) {
+                case "CONFIRMED" -> confirmRequests(event, requests);
+                case "REJECTED" -> rejectRequests(requests);
+                default -> throw new IllegalArgumentException("Incorrect status: " + request.getStatus());
+            };
+        });
     }
 
     /**
      * Получает список заявок на участие в событии, созданном указанным пользователем.
-     *
-     * @param eventId     ID события
-     * @param initiatorId ID пользователя (инициатора события)
-     * @return список заявок на участие в событии
-     * @throws NotFoundException если событие или пользователь не найдены
-     * @throws NoAccessException если пользователь не является инициатором события
      */
     @Override
     public List<ParticipationRequestDto> getRequestsForEvent(Long eventId, Long initiatorId) {
         log.debug("getRequestsForEvent: {} of user: {}", eventId, initiatorId);
-        try {
-            userClient.getUserById(initiatorId);
-        } catch (Exception e) {
-            throw new NotFoundException("User", initiatorId);
-        }
+
+        validateUserExists(initiatorId);
 
         EventInternalDto event = getEventById(eventId);
 
@@ -155,21 +131,14 @@ public class ParticipationRequestServiceImpl implements ParticipationRequestServ
             throw new NoAccessException("Only initiator can view requests of event");
         }
 
-        List<ParticipationRequest> allByEventId = requestRepo.findAllByEventId(eventId);
-
-        return allByEventId.stream()
+        return requestRepo.findAllByEventId(eventId).stream()
                 .map(ParticipationRequestMapper::toDto)
                 .toList();
     }
 
     /**
      * Отменяет заявку пользователя на участие.
-     *
-     * @param userId    ID пользователя
-     * @param requestId ID заявки на участие
-     * @return DTO отменённой заявки
-     * @throws NotFoundException  если заявка не найдена
-     * @throws ForbiddenException если пользователь не является автором заявки
+     * Только работа с БД — можно оставить обычный @Transactional.
      */
     @Override
     @Transactional
@@ -187,7 +156,16 @@ public class ParticipationRequestServiceImpl implements ParticipationRequestServ
         return ParticipationRequestMapper.toDto(requestRepo.save(request));
     }
 
-    // Аналогично, получаем событие из базы или кидаем исключение.
+    // === Внешние вызовы-helpers (без транзакций) ===
+
+    private void validateUserExists(Long userId) {
+        try {
+            userClient.getUserById(userId);
+        } catch (Exception e) {
+            throw new NotFoundException("User", userId);
+        }
+    }
+
     private EventInternalDto getEventById(Long eventId) {
         try {
             return eventClient.getEventById(eventId);
@@ -196,6 +174,7 @@ public class ParticipationRequestServiceImpl implements ParticipationRequestServ
         }
     }
 
+    // === Проверки и работа с БД (вызываются из транзакционных блоков) ===
     // Проверка: заявка уже существует? Если да — кидаем ошибку (не надо дублировать).
     private void checkRequestNotExists(Long userId, Long eventId) {
         if (requestRepo.existsByRequesterIdAndEventId(userId, eventId)) {
@@ -233,16 +212,8 @@ public class ParticipationRequestServiceImpl implements ParticipationRequestServ
     }
 
     /**
-     * Получает событие по ID и проверяет, что:
-     * - пользователь является инициатором;
-     * - событие опубликовано.
-     *
-     * @param userId  ID пользователя
-     * @param eventId ID события
-     * @return объект события
-     * @throws NotFoundException        если событие не найдено
-     * @throws ForbiddenException       если пользователь не инициатор
-     * @throws ConditionNotMetException если событие не опубликовано
+     * Проверяет, что пользователь — инициатор события, и что событие опубликовано.
+     * Тут только внешний сервис, без транзакций.
      */
     private EventInternalDto getEventWithCheck(Long userId, Long eventId) {
         EventInternalDto event = getEventById(eventId);
@@ -259,11 +230,7 @@ public class ParticipationRequestServiceImpl implements ParticipationRequestServ
     }
 
     /**
-     * Проверяет, что все заявки находятся в статусе ожидания (PENDING).
-     *
-     * @param requestIds список ID заявок
-     * @return список найденных заявок
-     * @throws ConditionNotMetException если хотя бы одна заявка не в статусе PENDING
+     * Проверяет, что все заявки в статусе PENDING.
      */
     private List<ParticipationRequest> getPendingRequestsOrThrow(List<Long> requestIds) {
         List<ParticipationRequest> requests = requestRepo.findAllById(requestIds);
@@ -280,10 +247,6 @@ public class ParticipationRequestServiceImpl implements ParticipationRequestServ
     /**
      * Подтверждает заявки на участие, если не превышен лимит участников.
      * Если лимит достигнут — остальные заявки отклоняются.
-     *
-     * @param event    событие, к которому относятся заявки
-     * @param requests список заявок
-     * @return результат обработки заявок
      */
     private EventRequestStatusUpdateResult confirmRequests(EventInternalDto event, List<ParticipationRequest> requests) {
         checkIfLimitAvailableOrThrow(event);

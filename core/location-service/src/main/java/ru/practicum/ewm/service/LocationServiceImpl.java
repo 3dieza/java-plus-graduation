@@ -10,7 +10,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import ru.practicum.ewm.client.EventClient;
 import ru.practicum.ewm.client.UserClient;
 import ru.practicum.ewm.dto.LocationAutoRequest;
@@ -36,7 +36,6 @@ import ru.practicum.ewm.repository.LocationRepository;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
 public class LocationServiceImpl implements LocationService {
 
     private static final double NEARBY_RADIUS = 50; // meters
@@ -44,86 +43,94 @@ public class LocationServiceImpl implements LocationService {
     private final UserClient userClient;
     private final LocationRepository locationRepository;
     private final EventClient eventClient;
-
+    private final TransactionTemplate transactionTemplate;
 
     @Override
-    @Transactional
     public LocationFullDtoOut addLocationByAdmin(LocationCreateDto dto) {
-        Location location = LocationMapper.fromDto(dto);
-        location.setState(LocationState.APPROVED);
-        return LocationMapper.toFullDto(locationRepository.save(location));
+        return transactionTemplate.execute(status -> {
+            Location location = LocationMapper.fromDto(dto);
+            location.setState(LocationState.APPROVED);
+            Location saved = locationRepository.save(location);
+            return LocationMapper.toFullDto(saved);
+        });
     }
 
     @Override
-    @Transactional
     public LocationPrivateDtoOut addLocation(Long userId, LocationCreateDto dto) {
+        // Внешний вызов — вне транзакции
         try {
             userClient.getUserById(userId);
         } catch (Exception e) {
             throw new NotFoundException("User", userId);
         }
 
-        checkForDuplicate(dto.getName(), dto.getLatitude(), dto.getLongitude());
+        // Работа с БД — в отдельной короткой транзакции
+        return transactionTemplate.execute(status -> {
+            checkForDuplicate(dto.getName(), dto.getLatitude(), dto.getLongitude());
 
-        Location location = LocationMapper.fromDto(dto);
-        location.setCreatorId(userId);
-        Location saved = locationRepository.save(location);
-        return LocationMapper.toPrivateDto(saved);
+            Location location = LocationMapper.fromDto(dto);
+            location.setCreatorId(userId);
+            Location saved = locationRepository.save(location);
+            return LocationMapper.toPrivateDto(saved);
+        });
     }
 
     @Override
-    @Transactional
     public LocationFullDtoOut update(Long id, LocationUpdateAdminDto dto) {
         log.debug("try update location by admin: {}", dto);
-        Location location = locationRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Location", id));
 
-        Optional.ofNullable(dto.getName()).ifPresent(location::setName);
-        Optional.ofNullable(dto.getAddress()).ifPresent(location::setAddress);
-        Optional.ofNullable(dto.getLatitude()).ifPresent(location::setLatitude);
-        Optional.ofNullable(dto.getLongitude()).ifPresent(location::setLongitude);
-        Optional.ofNullable(dto.getState()).ifPresent(
-                state -> changeLocationState(location, state));
+        return transactionTemplate.execute(status -> {
+            Location location = locationRepository.findById(id)
+                    .orElseThrow(() -> new NotFoundException("Location", id));
 
-        return LocationMapper.toFullDto(location);
+            Optional.ofNullable(dto.getName()).ifPresent(location::setName);
+            Optional.ofNullable(dto.getAddress()).ifPresent(location::setAddress);
+            Optional.ofNullable(dto.getLatitude()).ifPresent(location::setLatitude);
+            Optional.ofNullable(dto.getLongitude()).ifPresent(location::setLongitude);
+            Optional.ofNullable(dto.getState()).ifPresent(
+                    state -> changeLocationState(location, state));
+
+            return LocationMapper.toFullDto(location);
+        });
     }
 
     @Override
-    @Transactional
     public LocationPrivateDtoOut update(Long id, Long userId, LocationUpdateUserDto dto) {
-        Location location = locationRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Location", id));
+        return transactionTemplate.execute(status -> {
+            Location location = locationRepository.findById(id)
+                    .orElseThrow(() -> new NotFoundException("Location", id));
 
-        if (location.getState() != LocationState.PENDING) {
-            throw new ConditionNotMetException("Cannot update published or rejected location");
-        }
+            if (location.getState() != LocationState.PENDING) {
+                throw new ConditionNotMetException("Cannot update published or rejected location");
+            }
 
-        if (location.getCreatorId() == null || !location.getCreatorId().equals(userId)) {
-            throw new NoAccessException("Only creator can edit this location");
-        }
+            if (location.getCreatorId() == null || !location.getCreatorId().equals(userId)) {
+                throw new NoAccessException("Only creator can edit this location");
+            }
 
-        boolean needToCheckDuplicates =
-                (dto.getName() != null && !dto.getName().equals(location.getName())) ||
-                        (dto.getLatitude() != null && !dto.getLatitude().equals(location.getLatitude())) ||
-                        (dto.getLongitude() != null && !dto.getLongitude().equals(location.getLongitude()));
+            boolean needToCheckDuplicates =
+                    (dto.getName() != null && !dto.getName().equals(location.getName())) ||
+                            (dto.getLatitude() != null && !dto.getLatitude().equals(location.getLatitude())) ||
+                            (dto.getLongitude() != null && !dto.getLongitude().equals(location.getLongitude()));
 
-        if (needToCheckDuplicates) {
-            final String name = Optional.ofNullable(dto.getName()).orElse(location.getName());
-            final Double lat = Optional.ofNullable(dto.getLatitude()).orElse(location.getLatitude());
-            final Double lon = Optional.ofNullable(dto.getLongitude()).orElse(location.getLongitude());
-            checkForDuplicate(name, lat, lon);
-        }
+            if (needToCheckDuplicates) {
+                final String name = Optional.ofNullable(dto.getName()).orElse(location.getName());
+                final Double lat = Optional.ofNullable(dto.getLatitude()).orElse(location.getLatitude());
+                final Double lon = Optional.ofNullable(dto.getLongitude()).orElse(location.getLongitude());
+                checkForDuplicate(name, lat, lon);
+            }
 
-        Optional.ofNullable(dto.getName()).ifPresent(location::setName);
-        Optional.ofNullable(dto.getAddress()).ifPresent(location::setAddress);
-        Optional.ofNullable(dto.getLatitude()).ifPresent(location::setLatitude);
-        Optional.ofNullable(dto.getLongitude()).ifPresent(location::setLongitude);
+            Optional.ofNullable(dto.getName()).ifPresent(location::setName);
+            Optional.ofNullable(dto.getAddress()).ifPresent(location::setAddress);
+            Optional.ofNullable(dto.getLatitude()).ifPresent(location::setLatitude);
+            Optional.ofNullable(dto.getLongitude()).ifPresent(location::setLongitude);
 
-        return LocationMapper.toPrivateDto(location);
+            return LocationMapper.toPrivateDto(location);
+        });
     }
 
     private void checkForDuplicate(String name, Double lat, Double lon) {
-        log.debug("need check  for duplicates");
+        log.debug("need check for duplicates");
         Optional<Location> existing = locationRepository.findDuplicates(name, lat, lon, NEARBY_RADIUS);
 
         if (existing.isPresent()) {
@@ -140,11 +147,11 @@ public class LocationServiceImpl implements LocationService {
         return LocationMapper.toDto(location);
     }
 
-
     private void changeLocationState(Location location, LocationState state) {
         log.debug("changeLocationState id:{} state: {} -> {}", location.getId(), location.getState(), state);
-        if (location.getState() == state)
+        if (location.getState() == state) {
             return;
+        }
 
         if (state == LocationState.PENDING || state == LocationState.AUTO_GENERATED) {
             throw new ConditionNotMetException(
@@ -156,13 +163,13 @@ public class LocationServiceImpl implements LocationService {
     private static String getDuplicateErrorMessage(@NotNull Location existing) {
         Long id = existing.getId();
         switch (existing.getState()) {
-            case LocationState.APPROVED -> {
+            case APPROVED -> {
                 return String.format("Please use existing location (id=%d)", id);
             }
-            case LocationState.PENDING -> {
+            case PENDING -> {
                 return String.format("A request to create this location already exists (id=%d). Please wait for approval.", id);
             }
-            case LocationState.REJECTED -> {
+            case REJECTED -> {
                 return "The request for creating this location was rejected earlier. Please contact admin.";
             }
         }
@@ -180,7 +187,7 @@ public class LocationServiceImpl implements LocationService {
 
     @Override
     public Collection<LocationPrivateDtoOut> findAllByFilter(Long userId, LocationPrivateFilter filter) {
-
+        // внешний вызов — без транзакции
         try {
             userClient.getUserById(userId);
         } catch (Exception e) {
@@ -211,36 +218,41 @@ public class LocationServiceImpl implements LocationService {
     }
 
     @Override
-    @Transactional
     public void delete(Long id) {
+        // 1. Внешний вызов — вне транзакции
         var events = eventClient.getEventsByLocation(id, 0, 1);
         if (events != null && !events.isEmpty()) {
             throw new ConditionNotMetException("There are events in this location");
         }
 
-        locationRepository.deleteById(id);
+        // 2. Удаление в отдельной короткой транзакции
+        transactionTemplate.executeWithoutResult(status -> locationRepository.deleteById(id));
     }
 
     @Override
-    @Transactional
     public void delete(Long id, Long userId) {
-        Location location = locationRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Location", id));
+        // 1. Проверка прав и состояния — короткая транзакция
+        transactionTemplate.executeWithoutResult(status -> {
+            Location location = locationRepository.findById(id)
+                    .orElseThrow(() -> new NotFoundException("Location", id));
 
-        if (location.getState() == LocationState.APPROVED) {
-            throw new ConditionNotMetException("Cannot delete published location");
-        }
+            if (location.getState() == LocationState.APPROVED) {
+                throw new ConditionNotMetException("Cannot delete published location");
+            }
 
-        if (location.getCreatorId() == null || !location.getCreatorId().equals(userId)) {
-            throw new NoAccessException("Only creator can delete this location");
-        }
+            if (location.getCreatorId() == null || !location.getCreatorId().equals(userId)) {
+                throw new NoAccessException("Only creator can delete this location");
+            }
+        });
 
+        // 2. Внешний вызов — вне транзакции
         var events = eventClient.getEventsByLocation(id, 0, 1);
         if (events != null && !events.isEmpty()) {
             throw new ConditionNotMetException("There are events in this location");
         }
 
-        locationRepository.deleteById(id);
+        // 3. Фактическое удаление — отдельная транзакция
+        transactionTemplate.executeWithoutResult(status -> locationRepository.deleteById(id));
     }
 
     @Override
@@ -255,21 +267,22 @@ public class LocationServiceImpl implements LocationService {
             Optional<Location> nearByAutoGenerated = locationRepository.findNearByAutoGenerated(
                     location.getLatitude(), location.getLongitude());
 
-            return nearByAutoGenerated.orElseGet(()
-                    -> createAutoGeneratedLocation(location.getLatitude(), location.getLongitude()));
+            return nearByAutoGenerated.orElseGet(
+                    () -> createAutoGeneratedLocation(location.getLatitude(), location.getLongitude()));
         }
 
         throw new ConditionNotMetException("Invalid location");
     }
 
-    @Transactional
-    public Location createAutoGeneratedLocation(Double lat, Double lon) {
-        Location location = Location.builder()
-                .latitude(lat)
-                .longitude(lon)
-                .state(LocationState.AUTO_GENERATED)
-                .build();
-        return locationRepository.save(location);
+    private Location createAutoGeneratedLocation(Double lat, Double lon) {
+        return transactionTemplate.execute(status -> {
+            Location location = Location.builder()
+                    .latitude(lat)
+                    .longitude(lon)
+                    .state(LocationState.AUTO_GENERATED)
+                    .build();
+            return locationRepository.save(location);
+        });
     }
 
     private Specification<Location> buildSpecification(LocationAdminFilter filter) {
@@ -312,9 +325,7 @@ public class LocationServiceImpl implements LocationService {
     }
 
     @Override
-    @Transactional
     public LocationDtoOut getOrCreateAuto(LocationAutoRequest request) {
-
         LocationDto dto = new LocationDto();
         dto.setLatitude(request.getLatitude());
         dto.setLongitude(request.getLongitude());

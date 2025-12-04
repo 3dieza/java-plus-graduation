@@ -13,7 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import ru.practicum.ewm.client.CategoryClient;
 import ru.practicum.ewm.client.LocationClient;
 import ru.practicum.ewm.client.RequestClient;
@@ -48,7 +48,6 @@ import static ru.practicum.ewm.constants.Constants.STATS_EVENTS_URL;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
 public class EventServiceImpl implements EventService {
 
     private static final int MIN_TIME_TO_UNPUBLISHED_EVENT = 2;
@@ -60,27 +59,27 @@ public class EventServiceImpl implements EventService {
     private final RequestClient requestClient;
     private final StatsClient statsClient;
     private final LocationClient locationClient;
+    private final TransactionTemplate transactionTemplate;
 
     @Override
-    @Transactional
     public EventDtoOut add(Long userId, EventCreateDto eventDto) {
 
         validateEventDate(eventDto.getEventDate(), EventState.PENDING);
 
-        // 1. Валидация категории через client
+        // Внешние вызовы — вне транзакции
         CategoryDtoOut category = getCategoryOrThrow(eventDto.getCategoryId());
-
         UserDtoOut initiator = getUserOrThrow(userId);
-
-        Event event = EventMapper.fromDto(eventDto);
-        event.setInitiatorId(userId);
-        event.setCategoryId(category.getId());
-
         Long locationId = resolveLocationId(eventDto.getLocation());
-        event.setLocationId(locationId);
 
-        event = eventRepository.save(event);
+        Event event = transactionTemplate.execute(status -> {
+            Event e = EventMapper.fromDto(eventDto);
+            e.setInitiatorId(userId);
+            e.setCategoryId(category.getId());
+            e.setLocationId(locationId);
+            return eventRepository.save(e);
+        });
 
+        assert event != null;
         LocationDto location = loadLocation(event.getLocationId());
         if (location == null && eventDto.getLocation() != null) {
             LocationDto fallback = new LocationDto();
@@ -126,7 +125,6 @@ public class EventServiceImpl implements EventService {
     }
 
     @Override
-    @Transactional
     public EventDtoOut update(Long userId, Long eventId, EventUpdateDto eventDto) {
 
         log.warn(
@@ -134,119 +132,145 @@ public class EventServiceImpl implements EventService {
                 userId, eventId, eventDto
         );
 
-        Event event = getEvent(eventId);
-
-        log.warn(
-                "[UPDATE_EVENT_TRACE] loadedEventBeforeUpdate id={}, participantLimit={}, state={}",
-                event.getId(), event.getParticipantLimit(), event.getState()
-        );
-
-        if (!event.getInitiatorId().equals(userId)) {
-            log.warn("[UPDATE_EVENT_TRACE] NO ACCESS: initiator={}, userId={}", event.getInitiatorId(), userId);
-            throw new NoAccessException("Only initiator can edit the event");
+        // Если нужно сменить категорию — валидируем её до транзакции
+        CategoryDtoOut newCategory;
+        if (eventDto.getCategoryId() != null) {
+            newCategory = getCategoryOrThrow(eventDto.getCategoryId());
+        } else {
+            newCategory = null;
         }
 
-        if (event.getState() == EventState.PUBLISHED) {
-            log.warn("[UPDATE_EVENT_TRACE] UPDATE_BLOCKED: event is published");
-            throw new ConditionNotMetException("Cannot update published event");
-        }
+        Event updated = transactionTemplate.execute(status -> {
+            Event event = getEvent(eventId);
 
-        if (eventDto.getParticipantLimit() != null) {
             log.warn(
-                    "[UPDATE_EVENT_TRACE] updating participantLimit old={}, new={}",
-                    event.getParticipantLimit(),
-                    eventDto.getParticipantLimit()
+                    "[UPDATE_EVENT_TRACE] loadedEventBeforeUpdate id={}, participantLimit={}, state={}",
+                    event.getId(), event.getParticipantLimit(), event.getState()
             );
-        }
 
-        Optional.ofNullable(eventDto.getTitle()).ifPresent(event::setTitle);
-        Optional.ofNullable(eventDto.getAnnotation()).ifPresent(event::setAnnotation);
-        Optional.ofNullable(eventDto.getDescription()).ifPresent(event::setDescription);
-        Optional.ofNullable(eventDto.getPaid()).ifPresent(event::setPaid);
-        Optional.ofNullable(eventDto.getLocationId()).ifPresent(event::setLocationId);
-        Optional.ofNullable(eventDto.getParticipantLimit()).ifPresent(event::setParticipantLimit);
-        Optional.ofNullable(eventDto.getRequestModeration()).ifPresent(event::setRequestModeration);
-
-        if (eventDto.getCategoryId() != null
-                && !eventDto.getCategoryId().equals(event.getCategoryId())) {
-            log.warn("[UPDATE_EVENT_TRACE] updating category old={}, new={}",
-                    event.getCategoryId(), eventDto.getCategoryId());
-            CategoryDtoOut category = getCategoryOrThrow(eventDto.getCategoryId());
-            event.setCategoryId(category.getId());
-        }
-
-        if (eventDto.getEventDate() != null) {
-            log.warn("[UPDATE_EVENT_TRACE] updating eventDate new={}", eventDto.getEventDate());
-            validateEventDate(eventDto.getEventDate(), event.getState());
-            event.setEventDate(eventDto.getEventDate());
-        }
-
-        log.warn(
-                "[UPDATE_EVENT_TRACE] BEFORE_SAVE eventId={}, participantLimit={}",
-                event.getId(), event.getParticipantLimit()
-        );
-
-        log.warn("[UPDATE_EVENT_TRACE] stateAction received = {}", eventDto.getStateAction());
-        if (eventDto.getStateAction() != null) {
-            switch (eventDto.getStateAction()) {
-                case SEND_TO_REVIEW -> event.setState(EventState.PENDING);
-                case CANCEL_REVIEW -> event.setState(EventState.CANCELED);
+            if (!event.getInitiatorId().equals(userId)) {
+                log.warn("[UPDATE_EVENT_TRACE] NO ACCESS: initiator={}, userId={}",
+                        event.getInitiatorId(), userId);
+                throw new NoAccessException("Only initiator can edit the event");
             }
-        }
 
-        Event updated = eventRepository.save(event);
+            if (event.getState() == EventState.PUBLISHED) {
+                log.warn("[UPDATE_EVENT_TRACE] UPDATE_BLOCKED: event is published");
+                throw new ConditionNotMetException("Cannot update published event");
+            }
 
-        log.warn(
-                "[UPDATE_EVENT_TRACE] AFTER_SAVE eventId={}, participantLimit={}",
-                updated.getId(), updated.getParticipantLimit()
-        );
+            if (eventDto.getParticipantLimit() != null) {
+                log.warn(
+                        "[UPDATE_EVENT_TRACE] updating participantLimit old={}, new={}",
+                        event.getParticipantLimit(),
+                        eventDto.getParticipantLimit()
+                );
+            }
 
+            Optional.ofNullable(eventDto.getTitle()).ifPresent(event::setTitle);
+            Optional.ofNullable(eventDto.getAnnotation()).ifPresent(event::setAnnotation);
+            Optional.ofNullable(eventDto.getDescription()).ifPresent(event::setDescription);
+            Optional.ofNullable(eventDto.getPaid()).ifPresent(event::setPaid);
+            Optional.ofNullable(eventDto.getLocationId()).ifPresent(event::setLocationId);
+            Optional.ofNullable(eventDto.getParticipantLimit()).ifPresent(event::setParticipantLimit);
+            Optional.ofNullable(eventDto.getRequestModeration()).ifPresent(event::setRequestModeration);
+
+            if (newCategory != null) {
+                log.warn("[UPDATE_EVENT_TRACE] updating category old={}, new={}",
+                        event.getCategoryId(), newCategory.getId());
+                event.setCategoryId(newCategory.getId());
+            }
+
+            if (eventDto.getEventDate() != null) {
+                log.warn("[UPDATE_EVENT_TRACE] updating eventDate new={}", eventDto.getEventDate());
+                validateEventDate(eventDto.getEventDate(), event.getState());
+                event.setEventDate(eventDto.getEventDate());
+            }
+
+            log.warn(
+                    "[UPDATE_EVENT_TRACE] BEFORE_SAVE eventId={}, participantLimit={}",
+                    event.getId(), event.getParticipantLimit()
+            );
+
+            log.warn("[UPDATE_EVENT_TRACE] stateAction received = {}", eventDto.getStateAction());
+            if (eventDto.getStateAction() != null) {
+                switch (eventDto.getStateAction()) {
+                    case SEND_TO_REVIEW -> event.setState(EventState.PENDING);
+                    case CANCEL_REVIEW -> event.setState(EventState.CANCELED);
+                }
+            }
+
+            Event saved = eventRepository.save(event);
+
+            log.warn(
+                    "[UPDATE_EVENT_TRACE] AFTER_SAVE eventId={}, participantLimit={}",
+                    saved.getId(), saved.getParticipantLimit()
+            );
+
+            return saved;
+        });
+
+        assert updated != null;
         UserDtoOut initiator = getUserOrThrow(updated.getInitiatorId());
         LocationDto location = loadLocation(updated.getLocationId());
-        CategoryDtoOut category = getCategoryOrThrow(updated.getCategoryId());
+        CategoryDtoOut category = newCategory != null
+                ? newCategory
+                : getCategoryOrThrow(updated.getCategoryId());
 
         return EventMapper.toDto(updated, category, initiator, location);
     }
 
     @Override
-    @Transactional
     public EventDtoOut update(Long eventId, EventUpdateAdminDto eventDto) {
 
-        Event event = getEvent(eventId);
-
-        Optional.ofNullable(eventDto.getTitle()).ifPresent(event::setTitle);
-        Optional.ofNullable(eventDto.getAnnotation()).ifPresent(event::setAnnotation);
-        Optional.ofNullable(eventDto.getDescription()).ifPresent(event::setDescription);
-        Optional.ofNullable(eventDto.getParticipantLimit()).ifPresent(event::setParticipantLimit);
-        Optional.ofNullable(eventDto.getPaid()).ifPresent(event::setPaid);
-        Optional.ofNullable(eventDto.getLocationId()).ifPresent(event::setLocationId);
-        Optional.ofNullable(eventDto.getParticipantLimit()).ifPresent(event::setParticipantLimit);
-        Optional.ofNullable(eventDto.getRequestModeration()).ifPresent(event::setRequestModeration);
-
-        if (eventDto.getCategoryId() != null
-                && !eventDto.getCategoryId().equals(event.getCategoryId())) {
-
-            CategoryDtoOut category = getCategoryOrThrow(eventDto.getCategoryId());
-            event.setCategoryId(category.getId());
+        // Валидация новой категории — до транзакции
+        CategoryDtoOut newCategory;
+        if (eventDto.getCategoryId() != null) {
+            newCategory = getCategoryOrThrow(eventDto.getCategoryId());
+        } else {
+            newCategory = null;
         }
 
-        if (eventDto.getEventDate() != null) {
-            validateEventDate(eventDto.getEventDate(), event.getState());
-            event.setEventDate(eventDto.getEventDate());
-        }
+        Event updated = transactionTemplate.execute(status -> {
 
-        if (eventDto.getStateAction() != null) {
-            switch (eventDto.getStateAction()) {
-                case PUBLISH_EVENT -> publishEvent(event);
-                case REJECT_EVENT -> rejectEvent(event);
+            Event event = getEvent(eventId);
+
+            Optional.ofNullable(eventDto.getTitle()).ifPresent(event::setTitle);
+            Optional.ofNullable(eventDto.getAnnotation()).ifPresent(event::setAnnotation);
+            Optional.ofNullable(eventDto.getDescription()).ifPresent(event::setDescription);
+            Optional.ofNullable(eventDto.getParticipantLimit()).ifPresent(event::setParticipantLimit);
+            Optional.ofNullable(eventDto.getPaid()).ifPresent(event::setPaid);
+            Optional.ofNullable(eventDto.getLocationId()).ifPresent(event::setLocationId);
+            Optional.ofNullable(eventDto.getParticipantLimit()).ifPresent(event::setParticipantLimit);
+            Optional.ofNullable(eventDto.getRequestModeration()).ifPresent(event::setRequestModeration);
+
+            if (newCategory != null) {
+                event.setCategoryId(newCategory.getId());
             }
-        }
 
-        UserDtoOut initiator = getUserOrThrow(event.getInitiatorId());
-        LocationDto location = loadLocation(event.getLocationId());
-        CategoryDtoOut category = getCategoryOrThrow(event.getCategoryId());
+            if (eventDto.getEventDate() != null) {
+                validateEventDate(eventDto.getEventDate(), event.getState());
+                event.setEventDate(eventDto.getEventDate());
+            }
 
-        return EventMapper.toDto(event, category, initiator, location);
+            if (eventDto.getStateAction() != null) {
+                switch (eventDto.getStateAction()) {
+                    case PUBLISH_EVENT -> publishEvent(event);
+                    case REJECT_EVENT -> rejectEvent(event);
+                }
+            }
+
+            return eventRepository.save(event);
+        });
+
+        assert updated != null;
+        UserDtoOut initiator = getUserOrThrow(updated.getInitiatorId());
+        LocationDto location = loadLocation(updated.getLocationId());
+        CategoryDtoOut category = newCategory != null
+                ? newCategory
+                : getCategoryOrThrow(updated.getCategoryId());
+
+        return EventMapper.toDto(updated, category, initiator, location);
     }
 
     @Override
@@ -327,7 +351,7 @@ public class EventServiceImpl implements EventService {
                 .distinct()
                 .collect(Collectors.toMap(
                         id -> id,
-                        categoryClient::getCategoryById
+                        this::getCategoryOrThrow
                 ));
     }
 
@@ -499,7 +523,6 @@ public class EventServiceImpl implements EventService {
         }
     }
 
-    @SuppressWarnings("UnusedReturnValue")
     private Event getEvent(Long eventId) {
         return eventRepository.findById(eventId)
                 .orElseThrow(() -> new NotFoundException("Event", eventId));
