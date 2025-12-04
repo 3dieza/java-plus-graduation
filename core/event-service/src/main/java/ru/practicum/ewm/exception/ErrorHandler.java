@@ -133,11 +133,16 @@ public class ErrorHandler {
     @ExceptionHandler(DataIntegrityViolationException.class)
     @ResponseStatus(HttpStatus.CONFLICT)
     public ErrorResponse onDataIntegrityViolationException(final DataIntegrityViolationException e) {
-        log.error("409 {}", e.getMessage());
+        log.error("409 DataIntegrityViolationException: {}", e.getMessage(), e);
+
+        String rootMessage = e.getRootCause() != null
+                ? e.getRootCause().getMessage()
+                : "Data integrity violation";
+
         return ErrorResponse.builder()
                 .message(e.getMessage())
                 .status(HttpStatus.CONFLICT)
-                .reason(Objects.requireNonNull(e.getRootCause()).getMessage())
+                .reason(rootMessage)
                 .timestamp(LocalDateTime.now())
                 .build();
     }
@@ -152,8 +157,8 @@ public class ErrorHandler {
         String stackTrace = sw.toString();
 
         return ErrorResponse.builder()
-                .message(e.getMessage())
-                .reason(stackTrace)
+                .message("Internal server error")
+                .reason(e.getClass().getSimpleName())
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .timestamp(LocalDateTime.now())
                 .build();

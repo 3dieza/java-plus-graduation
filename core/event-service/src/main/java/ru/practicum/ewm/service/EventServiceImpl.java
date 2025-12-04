@@ -129,14 +129,34 @@ public class EventServiceImpl implements EventService {
     @Transactional
     public EventDtoOut update(Long userId, Long eventId, EventUpdateDto eventDto) {
 
+        log.warn(
+                "[UPDATE_EVENT_TRACE] userId={}, eventId={}, incomingDto={}",
+                userId, eventId, eventDto
+        );
+
         Event event = getEvent(eventId);
 
+        log.warn(
+                "[UPDATE_EVENT_TRACE] loadedEventBeforeUpdate id={}, participantLimit={}, state={}",
+                event.getId(), event.getParticipantLimit(), event.getState()
+        );
+
         if (!event.getInitiatorId().equals(userId)) {
+            log.warn("[UPDATE_EVENT_TRACE] NO ACCESS: initiator={}, userId={}", event.getInitiatorId(), userId);
             throw new NoAccessException("Only initiator can edit the event");
         }
 
         if (event.getState() == EventState.PUBLISHED) {
+            log.warn("[UPDATE_EVENT_TRACE] UPDATE_BLOCKED: event is published");
             throw new ConditionNotMetException("Cannot update published event");
+        }
+
+        if (eventDto.getParticipantLimit() != null) {
+            log.warn(
+                    "[UPDATE_EVENT_TRACE] updating participantLimit old={}, new={}",
+                    event.getParticipantLimit(),
+                    eventDto.getParticipantLimit()
+            );
         }
 
         Optional.ofNullable(eventDto.getTitle()).ifPresent(event::setTitle);
@@ -149,16 +169,24 @@ public class EventServiceImpl implements EventService {
 
         if (eventDto.getCategoryId() != null
                 && !eventDto.getCategoryId().equals(event.getCategoryId())) {
-
+            log.warn("[UPDATE_EVENT_TRACE] updating category old={}, new={}",
+                    event.getCategoryId(), eventDto.getCategoryId());
             CategoryDtoOut category = getCategoryOrThrow(eventDto.getCategoryId());
             event.setCategoryId(category.getId());
         }
 
         if (eventDto.getEventDate() != null) {
+            log.warn("[UPDATE_EVENT_TRACE] updating eventDate new={}", eventDto.getEventDate());
             validateEventDate(eventDto.getEventDate(), event.getState());
             event.setEventDate(eventDto.getEventDate());
         }
 
+        log.warn(
+                "[UPDATE_EVENT_TRACE] BEFORE_SAVE eventId={}, participantLimit={}",
+                event.getId(), event.getParticipantLimit()
+        );
+
+        log.warn("[UPDATE_EVENT_TRACE] stateAction received = {}", eventDto.getStateAction());
         if (eventDto.getStateAction() != null) {
             switch (eventDto.getStateAction()) {
                 case SEND_TO_REVIEW -> event.setState(EventState.PENDING);
@@ -167,6 +195,12 @@ public class EventServiceImpl implements EventService {
         }
 
         Event updated = eventRepository.save(event);
+
+        log.warn(
+                "[UPDATE_EVENT_TRACE] AFTER_SAVE eventId={}, participantLimit={}",
+                updated.getId(), updated.getParticipantLimit()
+        );
+
         UserDtoOut initiator = getUserOrThrow(updated.getInitiatorId());
         LocationDto location = loadLocation(updated.getLocationId());
         CategoryDtoOut category = getCategoryOrThrow(updated.getCategoryId());

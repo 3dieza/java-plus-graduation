@@ -15,7 +15,14 @@ eureka:
 
 logging:
   level:
-    org.springframework.cloud.gateway: INFO
-    org.springframework.cloud.gateway.handler.RoutePredicateHandlerMapping: INFO
-    org.springframework.cloud.gateway.handler.FilteringWebHandler: INFO
-    io.netty.resolver.dns.DnsServerAddressStreamProviders: WARN
+    ru.practicum.ewm.controller: DEBUG
+    ru.practicum.ewm.service.EventServiceImpl: DEBUG
+
+    org.springframework.web: DEBUG
+    org.springframework.http.converter: DEBUG
+
+    org.springframework.cloud.openfeign: DEBUG
+    org.springframework.cloud.loadbalancer: DEBUG
+    com.netflix.loadbalancer: DEBUG
+
+    org.springframework.retry: DEBUG
