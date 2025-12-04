@@ -60,6 +60,7 @@ public class EventServiceImpl implements EventService {
     private final StatsClient statsClient;
     private final LocationClient locationClient;
     private final TransactionTemplate transactionTemplate;
+    private final EventMapper eventMapper;
 
     @Override
     public EventDtoOut add(Long userId, EventCreateDto eventDto) {
@@ -72,7 +73,7 @@ public class EventServiceImpl implements EventService {
         Long locationId = resolveLocationId(eventDto.getLocation());
 
         Event event = transactionTemplate.execute(status -> {
-            Event e = EventMapper.fromDto(eventDto);
+            Event e = eventMapper.fromCreateDto(eventDto);
             e.setInitiatorId(userId);
             e.setCategoryId(category.getId());
             e.setLocationId(locationId);
@@ -89,7 +90,7 @@ public class EventServiceImpl implements EventService {
             location = fallback;
         }
 
-        return EventMapper.toDto(event, category, initiator, location);
+        return eventMapper.toDto(event, category, initiator, location);
     }
 
     private Long resolveLocationId(LocationDto dto) {
@@ -217,7 +218,7 @@ public class EventServiceImpl implements EventService {
                 ? newCategory
                 : getCategoryOrThrow(updated.getCategoryId());
 
-        return EventMapper.toDto(updated, category, initiator, location);
+        return eventMapper.toDto(updated, category, initiator, location);
     }
 
     @Override
@@ -270,7 +271,7 @@ public class EventServiceImpl implements EventService {
                 ? newCategory
                 : getCategoryOrThrow(updated.getCategoryId());
 
-        return EventMapper.toDto(updated, category, initiator, location);
+        return eventMapper.toDto(updated, category, initiator, location);
     }
 
     @Override
@@ -286,7 +287,7 @@ public class EventServiceImpl implements EventService {
         LocationDto location = loadLocation(event.getLocationId());
         CategoryDtoOut category = getCategoryOrThrow(event.getCategoryId());
 
-        return EventMapper.toDto(event, category, initiator, location);
+        return eventMapper.toDto(event, category, initiator, location);
     }
 
     @Override
@@ -306,7 +307,7 @@ public class EventServiceImpl implements EventService {
         UserDtoOut initiator = getUserOrThrow(event.getInitiatorId());
         LocationDto location = loadLocation(event.getLocationId());
 
-        return EventMapper.toDto(event, initiator, location);
+        return eventMapper.toDto(event, initiator, location);
     }
 
     @Override
@@ -321,7 +322,7 @@ public class EventServiceImpl implements EventService {
                 .map(event -> {
                     UserDtoOut initiator = usersById.get(event.getInitiatorId());
                     CategoryDtoOut category = categoriesById.get(event.getCategoryId());
-                    return EventMapper.toShortDto(event, category, initiator);
+                    return eventMapper.toShortDto(event, category, initiator);
                 })
                 .toList();
     }
@@ -339,7 +340,7 @@ public class EventServiceImpl implements EventService {
                     UserDtoOut initiator = usersById.get(event.getInitiatorId());
                     LocationDto location = loadLocation(event.getLocationId());
                     CategoryDtoOut category = categoriesById.get(event.getCategoryId());
-                    return EventMapper.toDto(event, category, initiator, location);
+                    return eventMapper.toDto(event, category, initiator, location);
                 })
                 .toList();
     }
@@ -410,7 +411,7 @@ public class EventServiceImpl implements EventService {
         Map<Long, UserDtoOut> usersById = loadUsersForEvents(events);
 
         return events.stream()
-                .map(event -> EventMapper.toShortDto(
+                .map(event -> eventMapper.toShortDto(
                         event,
                         usersById.get(event.getInitiatorId())
                 ))
@@ -598,7 +599,7 @@ public class EventServiceImpl implements EventService {
             if (full == null) {
                 return null;
             }
-            return EventMapper.toShortDto(full);
+            return eventMapper.toShortLocationDto(full);
         } catch (Exception e) {
             log.error("Error fetching location {}: {}", locationId, e.getMessage());
             return null;

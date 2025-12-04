@@ -1,53 +1,28 @@
 package ru.practicum.ewm.mapper;
 
-import lombok.experimental.UtilityClass;
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 import ru.practicum.ewm.dto.LocationCreateDto;
 import ru.practicum.ewm.dto.LocationDtoOut;
 import ru.practicum.ewm.dto.LocationFullDtoOut;
 import ru.practicum.ewm.dto.LocationPrivateDtoOut;
 import ru.practicum.ewm.model.Location;
 
-@UtilityClass
-public class LocationMapper {
-    public static Location fromDto(LocationCreateDto dto) {
-        return Location.builder()
-                .name(dto.getName())
-                .address(dto.getAddress())
-                .latitude(dto.getLatitude())
-                .longitude(dto.getLongitude())
-                .build();
-    }
+@Mapper(componentModel = "spring")
+public interface LocationMapper {
 
-    public static LocationDtoOut toDto(Location location) {
-        return LocationDtoOut.builder()
-                .id(location.getId())
-                .name(location.getName())
-                .address(location.getAddress())
-                .latitude(location.getLatitude())
-                .longitude(location.getLongitude())
-                .build();
-    }
+    // === CreateDto → Entity ===
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "creatorId", ignore = true)
+    @Mapping(target = "state", ignore = true)
+    Location fromCreateDto(LocationCreateDto dto);
 
-    public static LocationFullDtoOut toFullDto(Location location) {
-        return LocationFullDtoOut.builder()
-                .id(location.getId())
-                .name(location.getName())
-                .address(location.getAddress())
-                .latitude(location.getLatitude())
-                .longitude(location.getLongitude())
-                .creatorId(location.getCreatorId())
-                .state(location.getState())
-                .build();
-    }
+    // === Entity → DTO (public) ===
+    LocationDtoOut toDto(Location location);
 
-    public static LocationPrivateDtoOut toPrivateDto(Location location) {
-        return LocationPrivateDtoOut.builder()
-                .id(location.getId())
-                .name(location.getName())
-                .address(location.getAddress())
-                .latitude(location.getLatitude())
-                .longitude(location.getLongitude())
-                .state(location.getState())
-                .build();
-    }
+    // === Entity → DTO (full admin) ===
+    LocationFullDtoOut toFullDto(Location location);
+
+    // === Entity → DTO (private) ===
+    LocationPrivateDtoOut toPrivateDto(Location location);
 }

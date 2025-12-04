@@ -5,12 +5,12 @@ import ru.practicum.user.dto.UserDtoOut;
 import java.util.List;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
-import ru.practicum.user.mapper.UserMapper;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import ru.practicum.user.mapper.UserMapper;
 import ru.practicum.user.model.User;
 import ru.practicum.user.repository.UserRepository;
 
@@ -20,12 +20,13 @@ import ru.practicum.user.repository.UserRepository;
 public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
+    private final UserMapper userMapper;
 
     @Override
     @Transactional
     public UserDtoOut createUser(NewUserRequest request) {
-        User user = UserMapper.toEntity(request);
-        return UserMapper.toDto(userRepository.save(user));
+        User user = userMapper.toEntity(request);
+        return userMapper.toDto(userRepository.save(user));
     }
 
     @Override
@@ -39,7 +40,7 @@ public class UserServiceImpl implements UserService {
             users = userRepository.findByIdIn(ids, pageable);
         }
 
-        return users.stream().map(UserMapper::toDto).collect(Collectors.toList());
+        return users.stream().map(userMapper::toDto).collect(Collectors.toList());
     }
 
     @Override

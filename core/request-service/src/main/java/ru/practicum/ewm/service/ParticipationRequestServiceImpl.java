@@ -39,6 +39,7 @@ public class ParticipationRequestServiceImpl implements ParticipationRequestServ
     private final EventClient eventClient;
     private final ParticipationRequestRepository requestRepo;
     private final TransactionTemplate transactionTemplate;
+    private final ParticipationRequestMapper requestMapper;
 
     /**
      * Создает запрос на участие пользователя в событии.
@@ -75,7 +76,7 @@ public class ParticipationRequestServiceImpl implements ParticipationRequestServ
                     userId, eventId, requestStatus
             );
 
-            return ParticipationRequestMapper.toDto(requestRepo.save(request));
+            return requestMapper.toDto(requestRepo.save(request));
         });
     }
 
@@ -88,7 +89,7 @@ public class ParticipationRequestServiceImpl implements ParticipationRequestServ
         validateUserExists(userId);
 
         return requestRepo.findAllByRequesterId(userId).stream()
-                .map(ParticipationRequestMapper::toDto)
+                .map(requestMapper::toDto)
                 .toList();
     }
 
@@ -132,7 +133,7 @@ public class ParticipationRequestServiceImpl implements ParticipationRequestServ
         }
 
         return requestRepo.findAllByEventId(eventId).stream()
-                .map(ParticipationRequestMapper::toDto)
+                .map(requestMapper::toDto)
                 .toList();
     }
 
@@ -153,7 +154,7 @@ public class ParticipationRequestServiceImpl implements ParticipationRequestServ
         }
 
         request.setStatus(CANCELED);
-        return ParticipationRequestMapper.toDto(requestRepo.save(request));
+        return requestMapper.toDto(requestRepo.save(request));
     }
 
     // === Внешние вызовы-helpers (без транзакций) ===
@@ -272,8 +273,8 @@ public class ParticipationRequestServiceImpl implements ParticipationRequestServ
         requestRepo.saveAll(requests);
 
         return new EventRequestStatusUpdateResult(
-                confirmed.stream().map(ParticipationRequestMapper::toDto).toList(),
-                rejected.stream().map(ParticipationRequestMapper::toDto).toList()
+                confirmed.stream().map(requestMapper::toDto).toList(),
+                rejected.stream().map(requestMapper::toDto).toList()
         );
     }
 
@@ -327,7 +328,7 @@ public class ParticipationRequestServiceImpl implements ParticipationRequestServ
 
         return new EventRequestStatusUpdateResult(
                 List.of(),
-                requests.stream().map(ParticipationRequestMapper::toDto).toList()
+                requests.stream().map(requestMapper::toDto).toList()
         );
     }
 
