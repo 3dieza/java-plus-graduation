@@ -44,15 +44,15 @@ public class LocationServiceImpl implements LocationService {
     private final LocationRepository locationRepository;
     private final EventClient eventClient;
     private final TransactionTemplate transactionTemplate;
-    private  final LocationMapper locationMapper;
+    private final LocationMapper locationMapper;
 
     @Override
     public LocationFullDtoOut addLocationByAdmin(LocationCreateDto dto) {
         return transactionTemplate.execute(status -> {
-            Location location =  locationMapper.fromCreateDto(dto);
+            Location location = locationMapper.fromCreateDto(dto);
             location.setState(LocationState.APPROVED);
             Location saved = locationRepository.save(location);
-            return  locationMapper.toFullDto(saved);
+            return locationMapper.toFullDto(saved);
         });
     }
 
@@ -69,10 +69,10 @@ public class LocationServiceImpl implements LocationService {
         return transactionTemplate.execute(status -> {
             checkForDuplicate(dto.getName(), dto.getLatitude(), dto.getLongitude());
 
-            Location location =  locationMapper.fromCreateDto(dto);
+            Location location = locationMapper.fromCreateDto(dto);
             location.setCreatorId(userId);
             Location saved = locationRepository.save(location);
-            return  locationMapper.toPrivateDto(saved);
+            return locationMapper.toPrivateDto(saved);
         });
     }
 
@@ -91,7 +91,7 @@ public class LocationServiceImpl implements LocationService {
             Optional.ofNullable(dto.getState()).ifPresent(
                     state -> changeLocationState(location, state));
 
-            return  locationMapper.toFullDto(location);
+            return locationMapper.toFullDto(location);
         });
     }
 
@@ -126,7 +126,7 @@ public class LocationServiceImpl implements LocationService {
             Optional.ofNullable(dto.getLatitude()).ifPresent(location::setLatitude);
             Optional.ofNullable(dto.getLongitude()).ifPresent(location::setLongitude);
 
-            return  locationMapper.toPrivateDto(location);
+            return locationMapper.toPrivateDto(location);
         });
     }
 
@@ -145,7 +145,7 @@ public class LocationServiceImpl implements LocationService {
         Location location = locationRepository.findByIdAndState(id, LocationState.APPROVED)
                 .orElseThrow(() -> new NotFoundException("Location", id));
 
-        return  locationMapper.toDto(location);
+        return locationMapper.toDto(location);
     }
 
     private void changeLocationState(Location location, LocationState state) {
@@ -182,7 +182,7 @@ public class LocationServiceImpl implements LocationService {
         Specification<Location> spec = buildSpecification(filter);
         List<Location> locations = locationRepository.findAll(spec, filter.getPageable()).getContent();
         return locations.stream()
-                .map( locationMapper::toFullDto)
+                .map(locationMapper::toFullDto)
                 .toList();
     }
 
@@ -198,7 +198,7 @@ public class LocationServiceImpl implements LocationService {
         Specification<Location> spec = buildSpecification(userId, filter);
         List<Location> locations = locationRepository.findAll(spec, filter.getPageable()).getContent();
         return locations.stream()
-                .map( locationMapper::toPrivateDto)
+                .map(locationMapper::toPrivateDto)
                 .toList();
     }
 
@@ -207,7 +207,7 @@ public class LocationServiceImpl implements LocationService {
         Specification<Location> spec = buildSpecification(filter);
         List<Location> locations = locationRepository.findAll(spec, filter.getPageable()).getContent();
         return locations.stream()
-                .map( locationMapper::toDto)
+                .map(locationMapper::toDto)
                 .toList();
     }
 
@@ -215,7 +215,7 @@ public class LocationServiceImpl implements LocationService {
     public LocationFullDtoOut getByIdForAdmin(Long id) {
         Location location = locationRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Location", id));
-        return  locationMapper.toFullDto(location);
+        return locationMapper.toFullDto(location);
     }
 
     @Override
@@ -333,6 +333,6 @@ public class LocationServiceImpl implements LocationService {
 
         Location location = getOrCreateLocation(dto);
 
-        return  locationMapper.toDto(location);
+        return locationMapper.toDto(location);
     }
 }

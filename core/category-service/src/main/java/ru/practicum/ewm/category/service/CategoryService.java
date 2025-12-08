@@ -1,9 +1,8 @@
 package ru.practicum.ewm.category.service;
 
+import java.util.Collection;
 import ru.practicum.ewm.category.dto.CategoryDto;
 import ru.practicum.ewm.category.dto.CategoryDtoOut;
-
-import java.util.Collection;
 
 public interface CategoryService {
 
