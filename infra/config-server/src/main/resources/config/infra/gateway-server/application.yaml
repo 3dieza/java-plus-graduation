@@ -2,52 +2,63 @@ server:
   port: 8080
 
 spring:
-  output:
-    ansi:
-      enabled: always
+  application:
+    name: gateway-server
   cloud:
     gateway:
-      discovery:
-        locator:
-          enabled: true
-      routes:
-        - id: event_service_categories
-          uri: lb://event-service
-          predicates:
-            - Path=/admin/categories/**, /categories/**
+      server:
+        webflux:
+          discovery:
+            locator:
+              enabled: true
+              lower-case-service-id: true
+          routes:
+            - id: request-service-route
+              uri: lb://request-service
+              predicates:
+                - Path=/users/*/requests/**,/users/*/events/*/requests/**,/internal/requests/**
 
-        - id: comment_service_route
-          uri: lb://comment-service
-          predicates:
-            - Path=/admin/events/{eventId}/comments/**, /users/{userId}/events/{eventId}/comments/**
-          order: 0
+            - id: event-service-route
+              uri: lb://event-service
+              predicates:
+                - Path=/events/**,/admin/events/**,/users/*/events,/users/*/events/*
 
-        - id: event_service_other
-          uri: lb://event-service
-          predicates:
-            - Path=/admin/events/**, /users/*/events/**, /events/**, /admin/compilations/**, /compilations/**
-          order: 1
+            - id: user-service-route
+              uri: lb://user-service
+              predicates:
+                - Path=/admin/users/**
 
-        - id: user_service_route
-          uri: lb://user-service
-          predicates:
-            - Path=/admin/users/**
+            - id: stats-service-route
+              uri: lb://stats-server
+              predicates:
+                - Path=/stats/**
 
-        - id: request_service_route
-          uri: lb://request-service
-          predicates:
-            - Path=/users/*/requests/**
+            - id: location-service-route
+              uri: lb://location-service
+              predicates:
+                - Path=/locations/**,/admin/locations/**,/users/*/locations/**
 
-        - id: request_service_route_confirmed
-          uri: lb://request-service
-          predicates:
-            - Path=/users/requests/**
+            - id: category-service-route
+              uri: lb://category-service
+              predicates:
+                - Path=/**
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka
+    register-with-eureka: true
+    fetch-registry: true
 
 management:
-  endpoint:
-    gateway:
-      enabled: true
   endpoints:
     web:
       exposure:
-        include: gateway
+        include: health,info,metrics,gateway
+  endpoint:
+    gateway:
+      access: unrestricted
+
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG
+    reactor.netty: INFO
