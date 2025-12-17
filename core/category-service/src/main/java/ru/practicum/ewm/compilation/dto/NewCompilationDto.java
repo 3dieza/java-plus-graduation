@@ -1,8 +1,8 @@
 package ru.practicum.ewm.compilation.dto;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import java.util.HashSet;
 import java.util.Set;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -36,6 +36,6 @@ public class NewCompilationDto {
      * Список уникальных идентификаторов событий входящих в подборку.
      */
     @Builder.Default
-    @NotNull(message = "Список событий не может быть null")
-    private Set<@NotNull(message = "Идентификатор события не может быть пустым") Long> events = Set.of();
+//    @NotNull(message = "Список событий не может быть null")
+    private Set<Long> events = new HashSet<>();
 }
