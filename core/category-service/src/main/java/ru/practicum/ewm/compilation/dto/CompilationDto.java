@@ -15,7 +15,6 @@ public class CompilationDto {
     private Long id;
     private String title;
     private Boolean pinned;
-    @Builder.Default
-    Set<EventShortDtoOut> events = Set.of();
+    private Set<EventShortDtoOut> events;
 }
 
