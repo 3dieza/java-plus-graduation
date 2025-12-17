@@ -2,13 +2,11 @@ package ru.practicum.ewm.exception;
 
 import jakarta.validation.ConstraintViolationException;
 import java.time.LocalDateTime;
-import java.util.Objects;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindException;
-import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -20,178 +18,97 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 @RestControllerAdvice
 public class ErrorHandler {
 
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ErrorResponse handleMethodArgumentNotValidException(MethodArgumentNotValidException ex) {
-        String errorMessage = ex.getBindingResult()
-                .getFieldErrors()
-                .stream()
-                .map(FieldError::getDefaultMessage)
-                .filter(Objects::nonNull)
-                .findFirst()
-                .orElse("Validation failed");
+    /* =========================
+       400 BAD REQUEST
+       ========================= */
 
-        return ErrorResponse.builder()
-                .message(errorMessage)
-                .status(HttpStatus.BAD_REQUEST)
-                .reason("Method argument is not valid.")
-                .timestamp(LocalDateTime.now())
-                .build();
-    }
-
-    @ExceptionHandler(ConstraintViolationException.class)
+    @ExceptionHandler({
+            MethodArgumentNotValidException.class,
+            BindException.class,
+            ConstraintViolationException.class,
+            MethodArgumentTypeMismatchException.class,
+            MissingServletRequestParameterException.class,
+            HttpMessageNotReadableException.class,
+            IllegalArgumentException.class,
+            InvalidRequestException.class,
+            ConditionNotMetException.class
+    })
     @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ErrorResponse handleConstraintViolationException(ConstraintViolationException ex) {
+    public ErrorResponse handleBadRequest(Exception ex) {
+        log.debug("400 Bad Request: {}", ex.getMessage());
         return ErrorResponse.builder()
-                .message(ex.getMessage())
-                .status(HttpStatus.BAD_REQUEST)
-                .reason("Constraint violation")
-                .timestamp(LocalDateTime.now())
-                .build();
-    }
-
-    @ExceptionHandler(InvalidRequestException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ErrorResponse handleInvalidRequestException(InvalidRequestException ex) {
-        return ErrorResponse.builder()
-                .message(ex.getMessage())
+                .message("Invalid request")
                 .reason("Bad request.")
                 .status(HttpStatus.BAD_REQUEST)
                 .timestamp(LocalDateTime.now())
                 .build();
     }
 
-    @ExceptionHandler(IllegalArgumentException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ErrorResponse handleIllegalArgumentException(IllegalArgumentException ex) {
-        return ErrorResponse.builder()
-                .message(ex.getMessage())
-                .status(HttpStatus.BAD_REQUEST)
-                .reason("Incorrectly specified parameters.")
-                .timestamp(LocalDateTime.now())
-                .build();
-    }
+    /* =========================
+       404 NOT FOUND
+       ========================= */
 
     @ExceptionHandler(NotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
-    public ErrorResponse handleNotFoundException(NotFoundException ex) {
+    public ErrorResponse handleNotFound(NotFoundException ex) {
         return ErrorResponse.builder()
                 .message(ex.getMessage())
-                .status(HttpStatus.NOT_FOUND)
                 .reason("The required object was not found.")
+                .status(HttpStatus.NOT_FOUND)
                 .timestamp(LocalDateTime.now())
                 .build();
     }
+
+    /* =========================
+       409 CONFLICT
+       ========================= */
 
     @ExceptionHandler({
-            ConditionNotMetException.class,
-            IllegalStateException.class,
-            DuplicateLocationsException.class
+            DuplicateLocationsException.class,
+            ConflictException.class,
+            DataIntegrityViolationException.class
     })
     @ResponseStatus(HttpStatus.CONFLICT)
-    public ErrorResponse handleConflictExceptions(RuntimeException ex) {
+    public ErrorResponse handleConflict(RuntimeException ex) {
+        log.debug("409 Conflict: {}", ex.getMessage());
         return ErrorResponse.builder()
                 .message(ex.getMessage())
-                .status(HttpStatus.CONFLICT)
                 .reason("Condition not met.")
-                .timestamp(LocalDateTime.now())
-                .build();
-    }
-
-    @ExceptionHandler(NoAccessException.class)
-    @ResponseStatus(HttpStatus.FORBIDDEN)
-    public ErrorResponse handleNoAccessException(NoAccessException ex) {
-        return ErrorResponse.builder()
-                .message(ex.getMessage())
-                .status(HttpStatus.FORBIDDEN)
-                .reason("No access.")
-                .timestamp(LocalDateTime.now())
-                .build();
-    }
-
-    @ExceptionHandler(ForbiddenException.class)
-    @ResponseStatus(HttpStatus.FORBIDDEN)
-    public ErrorResponse handleForbiddenException(ForbiddenException ex) {
-        return ErrorResponse.builder()
-                .message(ex.getMessage())
-                .status(HttpStatus.FORBIDDEN)
-                .reason("Access denied.")
-                .timestamp(LocalDateTime.now())
-                .build();
-    }
-
-    @ExceptionHandler(MissingServletRequestParameterException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ErrorResponse handleMissingServletRequestParameterException(MissingServletRequestParameterException ex) {
-        return ErrorResponse.builder()
-                .message("Required parameter '" + ex.getParameterName() + "' is missing")
-                .reason("Missing parameter.")
-                .status(HttpStatus.BAD_REQUEST)
-                .timestamp(LocalDateTime.now())
-                .build();
-    }
-
-    @ExceptionHandler(DataIntegrityViolationException.class)
-    @ResponseStatus(HttpStatus.CONFLICT)
-    public ErrorResponse onDataIntegrityViolationException(final DataIntegrityViolationException e) {
-        log.error("409 DataIntegrityViolationException: {}", e.getMessage(), e);
-
-        String rootMessage = e.getRootCause() != null
-                ? e.getRootCause().getMessage()
-                : "Data integrity violation";
-
-        return ErrorResponse.builder()
-                .message(e.getMessage())
                 .status(HttpStatus.CONFLICT)
-                .reason(rootMessage)
                 .timestamp(LocalDateTime.now())
                 .build();
     }
+
+    /* =========================
+       403 FORBIDDEN
+       ========================= */
+
+    @ExceptionHandler({
+            NoAccessException.class,
+            ForbiddenException.class
+    })
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public ErrorResponse handleForbidden(RuntimeException ex) {
+        return ErrorResponse.builder()
+                .message(ex.getMessage())
+                .reason("No access.")
+                .status(HttpStatus.FORBIDDEN)
+                .timestamp(LocalDateTime.now())
+                .build();
+    }
+
+    /* =========================
+       500 INTERNAL SERVER ERROR
+       ========================= */
 
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
-    public ErrorResponse handleException(Exception e) {
-        log.warn("500 {}", e.getMessage(), e);
+    public ErrorResponse handleInternal(Exception ex) {
+        log.error("500 Internal Server Error", ex);
         return ErrorResponse.builder()
-                .message(e.getMessage())
+                .message("Unexpected error")
                 .reason("Internal server error.")
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .timestamp(LocalDateTime.now())
-                .build();
-    }
-
-    @ExceptionHandler(HttpMessageNotReadableException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ErrorResponse handleHttpMessageNotReadable(HttpMessageNotReadableException ex) {
-        log.debug("Malformed JSON request", ex);
-        return ErrorResponse.builder()
-                .message("Malformed JSON request")
-                .reason("Bad request.")
-                .status(HttpStatus.BAD_REQUEST)
-                .timestamp(LocalDateTime.now())
-                .build();
-    }
-
-    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ErrorResponse handleMethodArgumentTypeMismatch(MethodArgumentTypeMismatchException ex) {
-        log.debug("Malformed JSON request", ex);
-        return ErrorResponse.builder()
-                .message("Invalid request parameter")
-                .reason("Bad request.")
-                .status(HttpStatus.BAD_REQUEST)
-                .timestamp(LocalDateTime.now())
-                .build();
-    }
-
-    @ExceptionHandler(BindException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ErrorResponse handleBindException(BindException ex) {
-        log.debug("Malformed JSON request", ex);
-        return ErrorResponse.builder()
-                .message("Invalid request parameters")
-                .reason("Bad request.")
-                .status(HttpStatus.BAD_REQUEST)
                 .timestamp(LocalDateTime.now())
                 .build();
     }
