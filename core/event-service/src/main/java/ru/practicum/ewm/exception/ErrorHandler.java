@@ -161,7 +161,6 @@ public class ErrorHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorResponse handleHttpMessageNotReadable(HttpMessageNotReadableException ex) {
-        log.debug("Malformed JSON request", ex);
         return ErrorResponse.builder()
                 .message("Malformed JSON request")
                 .reason("Bad request.")

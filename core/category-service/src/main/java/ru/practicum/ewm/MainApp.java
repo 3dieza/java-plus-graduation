@@ -6,8 +6,8 @@ import org.springframework.cloud.openfeign.EnableFeignClients;
 
 @SpringBootApplication
 @EnableFeignClients(basePackages = "ru.practicum.ewm.client")
-public class CategoryApp {
+public class MainApp {
     public static void main(String[] args) {
-        SpringApplication.run(CategoryApp.class, args);
+        SpringApplication.run(MainApp.class, args);
     }
 }
