@@ -3,6 +3,13 @@ package analyzer.service.impl;
 import analyzer.model.Recommendation;
 import analyzer.repository.EventSimilarityRepository;
 import analyzer.repository.UserActionRepository;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -17,26 +24,24 @@ import ru.practicum.grpc.ewm.dashboard.message.RecommendedEventProto;
 import ru.practicum.grpc.ewm.dashboard.message.SimilarEventsRequestProto;
 import ru.practicum.grpc.ewm.dashboard.message.UserPredictionsRequestProto;
 
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
-
 @Service
 @RequiredArgsConstructor
 @Slf4j
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @Transactional(readOnly = true)
 public class RecommendationsService implements analyzer.service.RecommendationsService {
+
     UserActionRepository userActionRepository;
     EventSimilarityRepository eventSimilarityRepository;
 
     @Override
     public List<RecommendedEventProto> getRecommendationsForUser(UserPredictionsRequestProto request) {
-        Long userId = request.getUserId();
-        int limit = (int) request.getMaxResult(); // Единственный параметр для всех ограничений
+        long userId = request.getUserId();
+        int limit = (int) request.getMaxResult();
+        if (limit <= 0) {
+            return List.of();
+        }
+
         log.info("Запрос персонализированных рекомендаций для userId={}, limit={}", userId, limit);
 
         Pageable recentInteractionsPageable = PageRequest.of(0, limit);
@@ -78,32 +83,8 @@ public class RecommendationsService implements analyzer.service.RecommendationsS
         Map<Long, Double> userRatings = userActionRepository.findWeightsByUserIdAndEventIds(userId, allNeighbourIds);
 
         // -- Вычисляем финальный score
-        List<RecommendedEventProto> finalRecommendations = candidateEventIds.stream()
-                .map(candidateId -> {
-                    List<Recommendation> neighbours = neighboursMap.getOrDefault(candidateId, List.of());
-                    if (neighbours.isEmpty()) return null;
-
-                    double weightedSum = 0.0;
-                    double similaritySum = 0.0;
-                    for (Recommendation neighbour : neighbours) {
-                        Double rating = userRatings.get(neighbour.getEventId());
-                        if (rating != null) {
-                            weightedSum += rating * neighbour.getScore();
-                            similaritySum += neighbour.getScore();
-                        }
-                    }
-
-                    if (similaritySum == 0) return null;
-
-                    return RecommendedEventProto.newBuilder()
-                            .setEventId(candidateId)
-                            .setScore((float) (weightedSum / similaritySum))
-                            .build();
-                })
-                .filter(Objects::nonNull)
-                .sorted(Comparator.comparing(RecommendedEventProto::getScore).reversed())
-                .limit(limit) // Финальное ограничение результата
-                .collect(Collectors.toList());
+        List<RecommendedEventProto> finalRecommendations =
+                buildFinalRecommendations(candidateEventIds, neighboursMap, userRatings, limit);
 
         log.info("Сформировано {} рекомендаций для userId={}", finalRecommendations.size(), userId);
         return finalRecommendations;
@@ -111,14 +92,16 @@ public class RecommendationsService implements analyzer.service.RecommendationsS
 
     @Override
     public List<RecommendedEventProto> getSimilarEvents(SimilarEventsRequestProto request) {
-        Long eventId = request.getEventId();
-
-        Long userId = request.getUserId();
-
+        long eventId = request.getEventId();
+        long userId = request.getUserId();
         int limit = (int) request.getMaxResult();
+        if (limit <= 0) {
+            return List.of();
+        }
+
         log.info("Запрос похожих событий для eventId={}, исключая для userId={}, limit={}", eventId, userId, limit);
 
-        Set<Long> seenEventIds = userActionRepository.findEventIdsByUserId(userId);
+        Set<Long> seenEventIds = new HashSet<>(userActionRepository.findEventIdsByUserId(userId));
         seenEventIds.add(eventId);
 
         Pageable pageable = PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "score"));
@@ -129,6 +112,7 @@ public class RecommendationsService implements analyzer.service.RecommendationsS
         );
 
         log.info("Найдено {} похожих событий для eventId={}", similarEvents.size(), eventId);
+
         return similarEvents.stream()
                 .map(rec -> RecommendedEventProto.newBuilder()
                         .setEventId(rec.getEventId())
@@ -143,6 +127,7 @@ public class RecommendationsService implements analyzer.service.RecommendationsS
         if (eventIds.isEmpty()) {
             return List.of();
         }
+
         log.info("Запрос суммы весов взаимодействий для {} событий", eventIds.size());
 
         Map<Long, Double> eventWeights = userActionRepository.getAggregatedWeightsForEvents(eventIds);
@@ -154,5 +139,56 @@ public class RecommendationsService implements analyzer.service.RecommendationsS
                         .build())
                 .sorted(Comparator.comparing(RecommendedEventProto::getScore).reversed())
                 .collect(Collectors.toList());
+    }
+
+    private List<RecommendedEventProto> buildFinalRecommendations(Set<Long> candidateEventIds,
+                                                                  Map<Long, List<Recommendation>> neighboursMap,
+                                                                  Map<Long, Double> userRatings,
+                                                                  int limit) {
+        List<RecommendedEventProto> result = new ArrayList<>();
+
+        for (Long candidateId : candidateEventIds) {
+            float score = calculateCandidateScore(candidateId, neighboursMap, userRatings);
+            if (score <= 0.0f) {
+                continue;
+            }
+            result.add(RecommendedEventProto.newBuilder()
+                    .setEventId(candidateId)
+                    .setScore(score)
+                    .build());
+        }
+
+        return result.stream()
+                .sorted(Comparator.comparing(RecommendedEventProto::getScore).reversed())
+                .limit(limit)
+                .collect(Collectors.toList());
+    }
+
+    private float calculateCandidateScore(Long candidateId,
+                                          Map<Long, List<Recommendation>> neighboursMap,
+                                          Map<Long, Double> userRatings) {
+        List<Recommendation> neighbours = neighboursMap.get(candidateId);
+        if (neighbours == null || neighbours.isEmpty()) {
+            return 0.0f;
+        }
+
+        double weightedSum = 0.0;
+        double similaritySum = 0.0;
+
+        for (Recommendation neighbour : neighbours) {
+            Double rating = userRatings.get(neighbour.getEventId());
+            if (rating == null) {
+                continue;
+            }
+            double similarity = neighbour.getScore();
+            weightedSum += rating * similarity;
+            similaritySum += similarity;
+        }
+
+        if (similaritySum == 0.0) {
+            return 0.0f;
+        }
+
+        return (float) (weightedSum / similaritySum);
     }
 }
